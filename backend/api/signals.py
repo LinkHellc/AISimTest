@@ -44,6 +44,9 @@ async def upload_signals(file: UploadFile = File(...), db: AsyncSession = Depend
             max_value=sig.max_value,
             unit=sig.unit,
             bus_type=sig.bus_type,
+            class_type=sig.class_type,
+            data_type=sig.data_type,
+            description=sig.description,
         )
         db.add(db_sig)
     await db.commit()
@@ -70,6 +73,9 @@ async def get_signals(db: AsyncSession = Depends(get_db)):
                 'maxValue': s.max_value,
                 'unit': s.unit,
                 'busType': s.bus_type,
+                'classType': s.class_type,
+                'dataType': s.data_type,
+                'description': s.description,
             }
             for s in signals
         ],

@@ -4,19 +4,32 @@ import { configApi } from '../../services/api';
 
 const providerOptions = [
   { value: 'openai', label: 'OpenAI' },
-  { value: 'azure', label: 'Azure OpenAI' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'glm', label: '智谱 GLM' },
+  { value: 'minimax', label: 'MiniMax' },
   { value: 'qianwen', label: '通义千问' },
   { value: 'wenxin', label: '文心一言' },
-  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'azure', label: 'Azure OpenAI' },
   { value: 'custom', label: '自定义' },
 ];
 
 const providerUrls: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
-  azure: '',
+  deepseek: 'https://api.deepseek.com/v1',
+  glm: 'https://open.bigmodel.cn/api/paas/v4',
+  minimax: 'https://api.minimax.chat/v1',
   qianwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   wenxin: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop',
-  deepseek: 'https://api.deepseek.com/v1',
+  azure: '',
+};
+
+const providerModelHints: Record<string, string> = {
+  openai: 'gpt-4o',
+  deepseek: 'deepseek-chat',
+  glm: 'glm-4-flash',
+  minimax: 'MiniMax-Text-01',
+  qianwen: 'qwen-plus',
+  wenxin: 'ernie-4.0-8k',
 };
 
 const LLMConfigForm: React.FC = () => {
@@ -71,7 +84,10 @@ const LLMConfigForm: React.FC = () => {
     <Form form={form} layout="vertical" initialValues={{ provider: 'openai', temperature: 0.7, maxTokens: 2000 }}>
       <Form.Item name="provider" label="模型提供商" rules={[{ required: true }]}>
         <Select options={providerOptions} onChange={(val) => {
-          if (providerUrls[val]) form.setFieldsValue({ baseUrl: providerUrls[val] });
+          const updates: Record<string, string> = {};
+          if (providerUrls[val]) updates.baseUrl = providerUrls[val];
+          if (providerModelHints[val]) updates.model = providerModelHints[val];
+          if (Object.keys(updates).length > 0) form.setFieldsValue(updates);
         }} />
       </Form.Item>
       <Form.Item name="apiKey" label="API Key" rules={[{ required: true, message: '请输入 API Key' }]}>

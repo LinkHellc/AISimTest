@@ -28,6 +28,9 @@ class Signal(Base):
     max_value = Column(Float, default=0.0)
     unit = Column(String, default='')
     bus_type = Column(String, default='CAN')
+    class_type = Column(String, default='')      # Input / Output / Parameter
+    data_type = Column(String, default='')       # 数据类型
+    description = Column(Text, default='')       # 描述
 
 
 class TestCase(Base):

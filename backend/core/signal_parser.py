@@ -16,6 +16,9 @@ class ParsedSignal(BaseModel):
     max_value: float = 0.0
     unit: str = ''
     bus_type: str = 'CAN'
+    class_type: str = ''       # Input / Output / Parameter
+    data_type: str = ''        # 数据类型
+    description: str = ''      # 描述
 
 
 COLUMN_MAP = {
@@ -94,6 +97,9 @@ def parse_signal_excel(file_path: str) -> List[ParsedSignal]:
             max_value=safe_float('max_value'),
             unit=safe_str('unit'),
             bus_type=safe_str('bus_type', 'CAN').upper(),
+            class_type=safe_str('class'),
+            data_type=safe_str('data_type'),
+            description=safe_str('description'),
         )
         signals.append(signal)
 

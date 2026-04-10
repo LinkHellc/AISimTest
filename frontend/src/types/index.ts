@@ -24,6 +24,9 @@ export interface Signal {
   maxValue: number;
   unit: string;
   busType: 'CAN' | 'LIN';
+  classType: string;       // Input / Output / Parameter
+  dataType: string;        // 数据类型
+  description: string;     // 描述
 }
 
 // 需求-信号关联
