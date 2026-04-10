@@ -1,0 +1,80 @@
+// 需求条目
+export interface Requirement {
+  id: string;
+  title: string;
+  description: string;
+  acceptanceCriteria: string[];
+  parentId: string | null;
+  sourceLocation: string;
+  level: number;
+  children?: Requirement[];
+  selected?: boolean;
+}
+
+// 信号定义
+export interface Signal {
+  id: string;
+  name: string;
+  messageId: string | null;
+  startBit: number;
+  length: number;
+  factor: number;
+  offset: number;
+  minValue: number;
+  maxValue: number;
+  unit: string;
+  busType: 'CAN' | 'LIN';
+}
+
+// 需求-信号关联
+export interface RequirementSignalLink {
+  requirementId: string;
+  signalIds: string[];
+}
+
+// 测试用例
+export interface TestCase {
+  id: string;
+  name: string;
+  requirementId: string;
+  precondition: string;
+  steps: string[];
+  expectedResult: string;
+  category: 'positive' | 'negative';
+  signals: Signal[];
+}
+
+// LLM 配置
+export interface LLMConfig {
+  provider: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+// 生成参数
+export interface GenerationParams {
+  requirements: Requirement[];
+  signals: Signal[];
+  includeNegative: boolean;
+}
+
+// API 响应
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+// 文件上传状态
+export type UploadStatus = 'idle' | 'uploading' | 'parsing' | 'success' | 'error';
+
+// 生成进度
+export interface GenerationProgress {
+  current: number;
+  total: number;
+  status: 'idle' | 'generating' | 'completed' | 'error';
+  currentRequirement: string;
+}
