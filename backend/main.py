@@ -9,6 +9,8 @@ from api.health import router as health_router
 from api.requirements import router as requirements_router
 from api.signals import router as signals_router
 from api.links import router as links_router
+from api.config import router as config_router
+from api.testcases import router as testcases_router
 
 
 @asynccontextmanager
@@ -36,6 +38,8 @@ app.include_router(health_router, prefix='/api')
 app.include_router(requirements_router)
 app.include_router(signals_router)
 app.include_router(links_router)
+app.include_router(config_router)
+app.include_router(testcases_router)
 
 # 生产环境：托管前端构建产物
 frontend_dist = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'dist')
