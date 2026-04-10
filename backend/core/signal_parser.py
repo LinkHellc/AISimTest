@@ -20,15 +20,18 @@ class ParsedSignal(BaseModel):
 
 COLUMN_MAP = {
     'name': ['信号名称', 'signal name', 'name', '信号名', 'signal_name'],
+    'class': ['class', '类型', '方向', 'direction', 'signal class'],
     'message_id': ['消息id', 'message id', 'msg id', 'can id', 'message_id', 'frame id'],
     'start_bit': ['起始位', 'start bit', 'start_bit', '起始字节'],
     'length': ['长度', 'length', '位长', 'bit length', 'signal length'],
-    'factor': ['精度', 'factor', '比例因子', 'scale'],
+    'factor': ['精度', 'factor', '比例因子', 'scale', 'slope'],
     'offset': ['偏移量', 'offset', '偏移'],
     'min_value': ['最小值', 'min', 'minimum', 'min value', 'min_value'],
     'max_value': ['最大值', 'max', 'maximum', 'max value', 'max_value'],
     'unit': ['单位', 'unit', 'units'],
     'bus_type': ['总线类型', 'bus type', 'bus_type', 'bus'],
+    'data_type': ['data type', '数据类型', 'datatype'],
+    'description': ['description', '描述', '说明', 'remark'],
 }
 
 
@@ -61,21 +64,21 @@ def parse_signal_excel(file_path: str) -> List[ParsedSignal]:
         if not name or name == 'nan':
             continue
 
-        def safe_int(idx, default=0):
-            if idx in col_indices:
-                val = row.iloc[idx]
+        def safe_int(key, default=0):
+            if key in col_indices:
+                val = row.iloc[col_indices[key]]
                 return int(val) if pd.notna(val) else default
             return default
 
-        def safe_float(idx, default=0.0):
-            if idx in col_indices:
-                val = row.iloc[idx]
+        def safe_float(key, default=0.0):
+            if key in col_indices:
+                val = row.iloc[col_indices[key]]
                 return float(val) if pd.notna(val) else default
             return default
 
-        def safe_str(idx, default=''):
-            if idx in col_indices:
-                val = row.iloc[idx]
+        def safe_str(key, default=''):
+            if key in col_indices:
+                val = row.iloc[col_indices[key]]
                 return str(val).strip() if pd.notna(val) else default
             return default
 

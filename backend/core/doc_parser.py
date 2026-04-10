@@ -18,8 +18,10 @@ REQ_ID_PATTERNS = [
     re.compile(r'(REQ-\d+)', re.IGNORECASE),
     re.compile(r'(SRS-\d+)', re.IGNORECASE),
     re.compile(r'(FR-\d+)', re.IGNORECASE),
-    re.compile(r'(\d+\.\d+(?:\.\d+)?)'),
 ]
+
+# 编号标题模式：匹配行首的数字编号如 "5.9.2"、"5.9.2.1"、"1.1" 等
+NUMBERED_HEADING_PATTERN = re.compile(r'^(\d+(?:\.\d+)+)\s+(.*)')
 
 
 def extract_requirement_id(text: str) -> Optional[str]:
@@ -30,33 +32,66 @@ def extract_requirement_id(text: str) -> Optional[str]:
     return None
 
 
+def _detect_numbered_heading(text: str) -> Optional[tuple]:
+    """检测是否为编号标题，返回 (编号, 标题文字, 层级) 或 None"""
+    m = NUMBERED_HEADING_PATTERN.match(text)
+    if m:
+        number = m.group(1)
+        title = m.group(2).strip()
+        level = len(number.split('.'))
+        return (number, title, level)
+    return None
+
+
 def parse_docx(file_path: str) -> List[ParsedRequirement]:
     doc = Document(file_path)
     requirements: List[ParsedRequirement] = []
     heading_stack: List[ParsedRequirement] = []
     seen_ids = set()
 
-    # Process paragraphs for headings
     for para in doc.paragraphs:
-        style_name = para.style.name if para.style else ''
-        if not style_name.startswith('Heading'):
-            continue
-
-        try:
-            level = int(style_name.replace('Heading ', '').replace('Heading', '1').strip())
-        except ValueError:
-            level = 1
-        level = min(max(level, 1), 6)
-
         text = para.text.strip()
         if not text:
             continue
 
-        req_id = extract_requirement_id(text)
-        if not req_id:
-            req_id = f"REQ-{len(requirements) + 1:03d}"
+        style_name = para.style.name if para.style else ''
+        is_heading_style = style_name.startswith('Heading')
 
-        # Deduplicate IDs
+        # 检测编号标题（如 "5.9.2 标题"）
+        numbered = _detect_numbered_heading(text)
+
+        if is_heading_style:
+            # Heading 样式的段落
+            try:
+                level = int(style_name.replace('Heading ', '').replace('Heading', '1').strip())
+            except ValueError:
+                level = 1
+            level = min(max(level, 1), 6)
+            req_id = extract_requirement_id(text) or f"REQ-{len(requirements) + 1:03d}"
+            title = text
+
+        elif numbered:
+            # Normal 样式但包含编号标题
+            number, title, level = numbered
+            req_id = number
+            if not title:
+                title = text
+
+        else:
+            # 普通段落，追加到最近标题的描述中
+            if heading_stack:
+                last = heading_stack[-1]
+                # 找到 requirements 列表中对应的条目并追加描述
+                for req in requirements:
+                    if req.id == last.id:
+                        if req.description:
+                            req.description += '\n' + text
+                        else:
+                            req.description = text
+                        break
+            continue
+
+        # 去重 ID
         original_id = req_id
         counter = 1
         while req_id in seen_ids:
@@ -64,14 +99,14 @@ def parse_docx(file_path: str) -> List[ParsedRequirement]:
             counter += 1
         seen_ids.add(req_id)
 
-        # Determine parent
+        # 确定父级
         while heading_stack and heading_stack[-1].level >= level:
             heading_stack.pop()
         parent_id = heading_stack[-1].id if heading_stack else None
 
         req = ParsedRequirement(
             id=req_id,
-            title=text,
+            title=title,
             description='',
             acceptance_criteria=[],
             parent_id=parent_id,
@@ -81,7 +116,7 @@ def parse_docx(file_path: str) -> List[ParsedRequirement]:
         requirements.append(req)
         heading_stack.append(req)
 
-    # Process tables
+    # 处理表格
     for table in doc.tables:
         _parse_table(table, requirements, heading_stack, seen_ids)
 
