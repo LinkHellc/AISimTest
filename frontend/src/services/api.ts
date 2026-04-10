@@ -3,7 +3,7 @@ import type { ApiResponse, Requirement, Signal, TestCase, LLMConfig } from '../t
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 60000,
+  timeout: 120000,
 });
 
 // 需求相关 API
