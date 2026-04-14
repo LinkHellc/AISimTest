@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from database import get_db
-from models.base import TestCase as TestCaseModel, Requirement as RequirementModel, Signal as SignalModel
-from core.llm_adapter import generate_test_cases_for_requirement
+from models.base import TestCase as TestCaseModel, Requirement as RequirementModel, SignalLibrary as SignalLibraryModel
+from core.llm_adapter import generate_test_cases_for_requirement, generation_log_store
 from core.exporter import export_to_excel, export_to_word
 
 router = APIRouter(prefix='/api/testcases', tags=['testcases'])
@@ -26,10 +26,11 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
     if not requirements:
         raise HTTPException(status_code=404, detail='未找到选中的需求')
 
-    sig_result = await db.execute(select(SignalModel))
-    all_signals = sig_result.scalars().all()
+    sig_result = await db.execute(select(SignalLibraryModel))
+    all_signals = {s.name: s for s in sig_result.scalars().all()}
 
     all_test_cases = []
+    all_warnings = []
     for req in requirements:
         req_dict = {
             'id': req.id,
@@ -41,14 +42,45 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
             'exit_condition': req.exit_condition or '',
             'post_exit_behavior': req.post_exit_behavior or '',
         }
-        signals_dict = [
-            {'name': s.name, 'min_value': s.min_value, 'max_value': s.max_value,
-             'factor': s.factor, 'offset': s.offset, 'unit': s.unit}
-            for s in all_signals
-        ]
+        # 获取该需求关联的信号，精确匹配信号库
+        signals_dict = []
+        for si in (req.signal_interfaces or []):
+            name = si.get('name')
+            if not name:
+                continue
+            # 精确匹配
+            if name in all_signals:
+                sig = all_signals[name]
+                signals_dict.append({
+                    'name': name,
+                    'description': sig.description or '',  # 中文描述
+                    'data_type': sig.data_type or '',
+                    'unit': sig.unit or '',
+                    'value_table': sig.value_table or '',  # 值表
+                    'initial_value': sig.initial_value or '',
+                    'factor': sig.factor or 1.0,
+                    'offset': sig.offset or 0.0,
+                    'min_value': sig.min_value if sig.min_value is not None else 0.0,
+                    'max_value': sig.max_value if sig.max_value is not None else 0.0,
+                })
+            # 未匹配的接口信号（不在信号库中）也保留，让LLM知道有这些信号但无详细信息
+            else:
+                signals_dict.append({
+                    'name': name,
+                    'description': si.get('description', ''),
+                    'data_type': 'unknown',
+                    'unit': '',
+                    'value_table': '',
+                    'initial_value': '',
+                    'factor': 1.0,
+                    'offset': 0.0,
+                    'min_value': 0,
+                    'max_value': 0,
+                })
         try:
-            cases = await generate_test_cases_for_requirement(req_dict, signals_dict or None)
+            cases, _log_id, warnings = await generate_test_cases_for_requirement(req_dict, signals_dict or None)
             all_test_cases.extend(cases)
+            all_warnings.extend(warnings)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f'生成失败 (需求 {req.id}): {str(e)}')
 
@@ -74,7 +106,60 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
         db.add(db_case)
     await db.commit()
 
-    return {'success': True, 'data': all_test_cases}
+    return {'success': True, 'data': all_test_cases, 'warnings': all_warnings}
+
+
+@router.get('/logs')
+async def get_generation_logs():
+    """获取所有生成日志"""
+    logs = generation_log_store.get_all()
+    return {
+        'success': True,
+        'data': [
+            {
+                'id': log.id,
+                'requirement_id': log.requirement_id,
+                'requirement_title': log.requirement_title,
+                'raw_response': log.raw_response,
+                'generated_at': log.generated_at,
+                'success': log.success,
+                'error': log.error,
+                'warnings': log.warnings,
+            }
+            for log in logs
+        ],
+    }
+
+
+@router.get('/logs/{log_id}')
+async def get_generation_log(log_id: str):
+    """获取指定日志详情（包含完整提示词）"""
+    logs = generation_log_store.get_all()
+    for log in logs:
+        if log.id == log_id:
+            return {
+                'success': True,
+                'data': {
+                    'id': log.id,
+                    'requirement_id': log.requirement_id,
+                    'requirement_title': log.requirement_title,
+                    'system_prompt': log.system_prompt,
+                    'user_prompt': log.user_prompt,
+                    'raw_response': log.raw_response,
+                    'generated_at': log.generated_at,
+                    'success': log.success,
+                    'error': log.error,
+                    'warnings': log.warnings,
+                },
+            }
+    raise HTTPException(status_code=404, detail='日志不存在')
+
+
+@router.delete('/logs')
+async def clear_generation_logs():
+    """清空所有生成日志"""
+    generation_log_store.clear()
+    return {'success': True}
 
 
 @router.get('')

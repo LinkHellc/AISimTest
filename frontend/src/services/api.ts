@@ -59,6 +59,12 @@ export const testCaseApi = {
     api.post('/testcases/export/excel', { ids: testCaseIds }, { responseType: 'blob' }),
   exportWord: (testCaseIds?: string[]) =>
     api.post('/testcases/export/word', { ids: testCaseIds }, { responseType: 'blob' }),
+  getLogs: () =>
+    api.get<ApiResponse<any[]>>('/testcases/logs'),
+  getLog: (logId: string) =>
+    api.get<ApiResponse<any>>(`/testcases/logs/${logId}`),
+  clearLogs: () =>
+    api.delete<ApiResponse<void>>('/testcases/logs'),
 };
 
 // LLM 配置相关 API
@@ -69,6 +75,12 @@ export const configApi = {
     api.put<ApiResponse<void>>('/config/llm', config),
   testConnection: (config: LLMConfig) =>
     api.post<ApiResponse<{ success: boolean; message: string }>>('/config/llm/test', config),
+  getPromptTemplates: () =>
+    api.get<ApiResponse<any[]>>('/config/prompts'),
+  updatePromptTemplate: (id: string, data: { content: string }) =>
+    api.put<ApiResponse<void>>(`/config/prompts/${id}`, data),
+  resetPromptTemplate: (id: string) =>
+    api.post<ApiResponse<void>>(`/config/prompts/${id}/reset`),
 };
 
 // 健康检查

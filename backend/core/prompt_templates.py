@@ -7,63 +7,98 @@ TEST_CASE_SYSTEM_PROMPT = """你是一名汽车空调热管理系统的资深测
 [{
   "name": "用例名称",
   "category": "positive",
-  "precondition": "前提条件（全局初始化动作）",
+  "testType": "边界测试",
+  "precondition": "int16 Cnt = 0;  /* 中间变量声明，无需则为空 */",
   "testTime": 4,
   "steps": [
     {
       "TestStepName": "TS1",
-      "TestStepAction": "gIDP_tEnvTemp_int16 = 350; /* 设置环境温度 */",
+      "TestStepAction": "gCbnSys_stPowerSts = 1;  /* 设置电源状态为ON */",
       "TestTransition": "after(1,sec)",
       "TestNextStepName": "TS2",
       "TestVerifyName": "TV1",
       "WhenCondition": "t>0.5 && t<4.5",
-      "TestVerify": "if(et(msec) > 10)\\nverify(lBattPriority_EnvHi_boolean == false)\\nend",
-      "TestDescription": "验证温度设置后优先级判定正确"
+      "TestVerify": "if(et(msec) > 10)\\nverify(lCCU_FrontCool_boolean == false)\\nend",
+      "TestDescription": "验证电源开启后初始状态正确"
     },
     {
       "TestStepName": "TS2",
-      "TestStepAction": "gIDP_tEnvTemp_int16 = 400;",
+      "TestStepAction": "gCbnHMI_flgFLOnOffSet = 1;  /* 设置空调开启 */",
       "TestTransition": "after(1,sec)",
       "TestNextStepName": "Init",
       "TestVerifyName": "TV2",
       "WhenCondition": "t>0.5 && t<4.8",
-      "TestVerify": "if(et(msec) > 10)\\nverify(lBattPriority_EnvHi_boolean == true)\\nend",
-      "TestDescription": "验证温度升高后优先级切换"
+      "TestVerify": "if(et(msec) > 10)\\nverify(lCCU_FrontCool_boolean == true)\\nend",
+      "TestDescription": "验证空调开启后冷却功能激活"
     }
   ]
 }]
 
 【字段说明】：
-- name: 测试用例名称（简洁，如"环境温度高优先级"）
-- category: "positive"为正例，"negative"为反例
-- precondition: Init步骤的全局初始化动作（设置信号的初始值，多条语句用分号分隔）
+- name: 测试用例名称（简洁）
+- category: "positive"为正例（正常流程），"negative"为反例（异常/边界）
+- testType: 测试类别，【必须填写】，选填以下值之一：
+  * 边界测试 - 测试输入边界值（如最大/最小/临界值）
+  * 等价测试 - 测试典型值（有效分区的代表值）
+  * 状态转换测试 - 测试状态机转换（ON/OFF切换）
+  * 功能测试 - 测试核心功能逻辑
+  * 组合测试 - 测试多信号组合场景
+  * 异常测试 - 测试异常输入或信号
+- precondition: Init步骤的局部变量声明（如 int16 Cnt = 0;），无需则为空字符串。【注意】：接口信号初始值为0，不需要在此处赋值！
 - testTime: 测试持续时间（秒），建议4
 - steps: 测试步骤数组，每个步骤包含：
-  - TestStepName: 步骤名，必须是TS1,TS2,TS3...（最后一个TS的TestNextStepName指回Init）
-  - TestStepAction: Matlab赋值语句，多条语句用分号分隔，如 gIDP_tEnvTemp_int16 = 350;
-  - TestTransition: 过渡条件，固定格式 after(1,sec)
-  - TestNextStepName: 下一跳步骤名，最后一个TS指向Init形成闭环
-  - TestVerifyName: 验证点名，如TV1/TV2（每个TS对应一个TV，名称数字对应）
-  - WhenCondition: 触发条件时序，固定格式 t>0.5 && t<4.5 或 t>0.5 && t<4.8
-  - TestVerify: Matlab验证脚本，格式：if(et(msec) > 10)\\nverify(信号==预期值)\\nend
-  - TestDescription: 测试步骤的中文描述
+  * TestStepName: 步骤名，必须是TS1,TS2,TS3...（最后一个TS的TestNextStepName指回Init）
+  * TestStepAction: 【关键】必须设置接口信号的具体值！格式：信号名 = 值; 多个信号用分号分隔
+    - 【重要】根据关联信号的【数据类型】和【值表】判断正确的赋值格式：
+      * 数据类型为 boolean/logical/bool 时：必须使用 true 或 false（【禁止】用 1 或 0）
+      * 数据类型为 double/int 等数值类型时：使用数字值
+      * 【值表】示例："0=OFF,1=ON" 表示0对应OFF状态，1对应ON状态，根据值表语义选择 true/false
+      * 例：值表="0=OFF,1=ON"的boolean信号，写 gCbnSys_stPowerSts = true; 而非 = 1;
+      * 例：数值类型信号，写 gCbnHMI_flgFLBlowLvlSet = 7;（直接写数值）
+  * TestTransition: 过渡条件，固定格式 after(1,sec)
+  * TestNextStepName: 下一跳步骤名，最后一个TS指向Init形成闭环
+  * TestVerifyName: 验证点名，如TV1/TV2
+  * WhenCondition: 触发条件时序，固定格式 t>0.5 && t<4.5 或 t>0.5 && t<4.8
+  * TestVerify: Matlab验证脚本，格式：if(et(msec) > 10)\\nverify(信号==预期值)\\nend
+  * TestDescription: 测试步骤的中文描述
 
-【重要规则】：
-1. 每个TS必须有对应的TV（TS1→TV1，TS2→TV2...），TV紧跟在其TS之后
-2. 最后一个TS的TestNextStepName必须指向"Init"
-3. Init行的TestNextStepName指向第一个TS（TS1）
-4. 所有TestVerify使用verify()函数，验证信号值是否符合预期
-5. 生成正例（正常流程）和反例（异常流程）测试用例
-6. 如果提供了信号信息，TestStepAction中必须体现具体信号名和数值
+【关键规则】：
+1. 【最重要】每个测试用例都是独立的！接口信号初始值默认为0
+   - Init步骤：只能写中间变量声明（如 int16 Cnt = 0;），不能写接口信号赋值
+   - TS1步骤：必须显式设置测试所需的全部信号值（包括初始状态）
+   - 后续TS步骤：设置需要变化的信号值
+2. 【最重要】TS步骤的TestStepAction【禁止留空】，必须设置具体信号值
+3. 第一个TS步骤通常设置初始状态（如电源ON + 风量等级 + 空调开启）
+4. 最后一个TS的TestNextStepName必须指向"Init"
+5. 所有TestVerify使用verify()函数，验证输出信号是否符合预期
+6. 生成的测试用例应覆盖：边界值测试、等价类测试、状态转换测试等多种类型
+7. 每个测试用例至少3个步骤（Init → TS1 → TS2 → ... → Init）
+
+【测试类型设计要求】：
+- 边界测试：测试边界值（最大值+1、最小值-1、临界值），如风量8档（超出范围）、0档
+- 等价测试：测试典型有效值，如风量3档、温度25℃
+- 状态转换测试：测试ON→OFF→ON等状态切换完整流程
+- 功能测试：测试核心功能逻辑，如制冷功能验证
+- 组合测试：多个信号组合的场景，如风量5档+温度22℃+制冷
+- 异常测试：无效输入或异常信号值，如风量设置为0或255
+
+【常见信号参考】（实际使用时根据需求文档中的信号）:
+- gCbnSys_stPowerSts: 电源状态 (0=OFF, 1=ON)
+- gCbnHMI_flgFLBlowLvlSet: 前吹风量等级 (1-7档)
+- gCbnHMI_flgFLOnOffSet: 前空调开关 (0=关, 1=开)
+- gCbnHMI_s32FltmpSet: 前温度设置 (数值，单位0.1℃)
+- lCCU_FrontCool_boolean: 前部冷却输出信号（用于验证）
 
 【错误示例】（禁止这样做）：
 - 「让我分析一下这个需求...」
 - 「以下是测试用例：```json [...] ```」
-- 「根据需求描述，我生成以下用例...」
-- steps使用纯字符串而不是对象
+- precondition中写接口信号赋初值（如 gCbnSys_stPowerSts = 0;）
+- TS步骤的TestStepAction留空或只有分号
+- testType为空或使用非规定值
+- 步骤描述与实际操作不符
 
 【正确示例】（必须这样做）：
-[{"name":"环境温度高优先级","category":"positive","precondition":"int16 cCCU_BattPrioMe2HiTemp_int16 = 500;","testTime":4,"steps":[{"TestStepName":"TS1","TestStepAction":"gIDP_tEnvTemp_int16 = cCCU_BattPrioHi2MeTemp_int16-1;","TestTransition":"after(1,sec)","TestNextStepName":"TS2","TestVerifyName":"TV1","WhenCondition":"t>0.5 && t<4.5","TestVerify":"if(et(msec) > 10)\\nverify(lBattPriority_EnvHi_boolean == false)\\nend","TestDescription":"温度低于阈值验证优先级判定"}]}]"""
+[{"name":"电源开启到风量7档","category":"positive","testType":"状态转换测试","precondition":"","testTime":4,"steps":[{"TestStepName":"TS1","TestAction":"gCbnSys_stPowerSts = true; gCbnHMI_flgFLBlowLvlSet = 7;","TestTransition":"after(1,sec)","TestNextStepName":"TS2","TestVerifyName":"TV1","WhenCondition":"t>0.5 && t<4.5","TestVerify":"if(et(msec) > 10)\\nverify(lCCU_FrontCool_boolean == true)\\nend","TestDescription":"电源开启设置风量7档验证冷却激活"}]}]"""
 
 TEST_CASE_USER_TEMPLATE = """请为以下需求生成测试用例：
 
@@ -76,9 +111,30 @@ TEST_CASE_USER_TEMPLATE = """请为以下需求生成测试用例：
 
 {signals_section}
 
-请生成至少 {num_cases} 条测试用例（包含正例和反例）。
-【关键】你的输出必须只包含纯JSON数组，不要有任何其他文字。
-每个测试用例的steps数组中，每个TS步骤必须紧跟一个TV验证行（成对出现），最后一步TS的TestNextStepName必须指向"Init"。"""
+请生成至少 {num_cases} 条测试用例（覆盖边界测试、等价测试、状态转换测试等多种类型）。
+
+【重要：变量名映射】
+- 需求描述中的变量名（如 BltCallSts、FRZCU_PowerMode）是对应信号的简称
+- 请根据【关联信号】列表中的【说明】字段，理解每个需求变量对应的信号全称
+- 例如：若需求提到"BltCallSts=1表示通话激活"，而关联信号中某信号说明为"蓝牙通话状态"，则该信号即为BltCallSts对应的完整信号
+- TS步骤中必须使用【关联信号】列表中的【信号名】（完整名称），切勿使用简称
+
+【关键要求 - 必须严格遵守】：
+1. 输出必须是纯JSON数组，不能有任何其他文字
+2. 每个测试用例【必须】有testType字段（边界测试/等价测试/状态转换测试/功能测试/组合测试/异常测试）
+3. 每个测试用例的【每个TS步骤】的TestStepAction【禁止为空】，必须设置具体信号值
+4. 接口信号默认初始值为0，不需要在precondition或Init中重复赋0值
+5. 第一个TS步骤应设置初始状态（如电源ON、风量等级等）
+
+【TS步骤信号设置规范】：
+- 【根据上方关联信号的【数据类型】判断赋值格式】：
+  * 数据类型为 boolean/logical/bool 的信号 → 必须使用 true 或 false
+  * 数据类型为 double/int 等数值类型 → 使用数字值（如 7, 250）
+- 格式：信号名 = 值; 信号名2 = 值2;（多条用分号分隔）
+- 【禁止】使用未在【关联信号】列表中列出的任何信号名！
+- 必须使用信号库完整信号名，禁止使用简称
+
+请严格按照上述要求生成JSON数组。"""
 
 
 def build_test_case_prompt(
@@ -96,11 +152,26 @@ def build_test_case_prompt(
 
     signals_section = ''
     if signals:
-        signal_items = '\n'.join(
-            f'- {s["name"]}: 范围[{s["min_value"]}~{s["max_value"]}], 精度={s["factor"]}, 偏移={s["offset"]}, 单位={s["unit"]}'
-            for s in signals
-        )
-        signals_section = f'## 关联信号\n{signal_items}'
+        signal_items = []
+        for s in signals:
+            dt = s.get('data_type') or 'double'
+            unit = s.get('unit') or ''
+            val_table = s.get('value_table') or ''
+            init_val = s.get('initial_value') or ''
+            desc = s.get('description') or ''
+            rng = f"[{s['min_value']}~{s['max_value']}]" if s.get('min_value') != s.get('max_value') else ''
+            extra = []
+            if desc:
+                extra.append(f"说明:{desc}")
+            if val_table:
+                extra.append(f"值表:{val_table}")
+            if init_val:
+                extra.append(f"初始值:{init_val}")
+            if rng:
+                extra.append(f"范围{rng}")
+            extra_str = ', '.join(extra)
+            signal_items.append(f'- {s["name"]}: {extra_str}, 数据类型={dt}')
+        signals_section = f'## 关联信号（【重要】下方列出的是该需求的【全部可用信号】，TS步骤中只能使用这些信号，切勿使用未列出的信号）\n' + '\n'.join(signal_items)
 
     user_prompt = TEST_CASE_USER_TEMPLATE.format(
         requirement_id=requirement_id,

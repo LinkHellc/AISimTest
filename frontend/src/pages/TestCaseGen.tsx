@@ -1,12 +1,25 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Typography, Table, Button, Space, Card, message, Tag, Popconfirm, Input } from 'antd';
-import { ThunderboltOutlined, FileExcelOutlined, FileWordOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Typography, Table, Button, Space, Card, message, Tag, Popconfirm, Input, Collapse } from 'antd';
+import { ThunderboltOutlined, FileExcelOutlined, FileWordOutlined, EditOutlined, DeleteOutlined, ClearOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import TestCaseEditModal from '../components/TestCase/TestCaseEditModal';
 import { testCaseApi, requirementApi } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import type { Requirement, TestCase } from '../types';
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Paragraph, Text, Pre } = Typography;
+const { Panel } = Collapse;
+
+interface GenerationLog {
+  id: string;
+  requirement_id: string;
+  requirement_title: string;
+  system_prompt?: string;
+  user_prompt?: string;
+  raw_response: string;
+  generated_at: string;
+  success: boolean;
+  error: string;
+}
 
 const TestCaseGen: React.FC = () => {
   const requirements = useAppStore((s) => s.requirements);
@@ -20,6 +33,8 @@ const TestCaseGen: React.FC = () => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingCase, setEditingCase] = useState<TestCase | null>(null);
+  const [logs, setLogs] = useState<GenerationLog[]>([]);
+  const [logPanelExpanded, setLogPanelExpanded] = useState(false);
 
   const loadRequirements = useCallback(async () => {
     try {
@@ -39,8 +54,18 @@ const TestCaseGen: React.FC = () => {
     } catch { /* ignore */ }
   }, [setTestCases]);
 
+  const loadLogs = useCallback(async () => {
+    try {
+      const res = await testCaseApi.getLogs();
+      if (res.data.success && res.data.data) {
+        setLogs(res.data.data);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => { loadRequirements(); }, [loadRequirements]);
   useEffect(() => { loadTestCases(); }, [loadTestCases]);
+  useEffect(() => { loadLogs(); }, [loadLogs]);
 
   // 按需求ID分组测试用例
   const testCasesByReq = useMemo(() => {
@@ -64,6 +89,8 @@ const TestCaseGen: React.FC = () => {
         setTestCases(res.data.data);
         message.success(`成功生成 ${res.data.data.length} 条测试用例`);
         setSelectedRowKeys([]);
+        await loadLogs();
+        setLogPanelExpanded(true);
       } else {
         message.error(res.data.error || '生成失败');
       }
@@ -71,6 +98,16 @@ const TestCaseGen: React.FC = () => {
       message.error(error.response?.data?.detail || error.message || '生成失败');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleClearLogs = async () => {
+    try {
+      await testCaseApi.clearLogs();
+      setLogs([]);
+      message.success('日志已清空');
+    } catch {
+      message.error('清空日志失败');
     }
   };
 
@@ -289,6 +326,11 @@ const TestCaseGen: React.FC = () => {
           <Button icon={<FileWordOutlined />} onClick={handleExportWord} disabled={testCases.length === 0}>
             导出 Word
           </Button>
+          {logs.length > 0 && (
+            <Button icon={logPanelExpanded ? <UpOutlined /> : <DownOutlined />} onClick={() => setLogPanelExpanded(!logPanelExpanded)}>
+              日志 {logs.length > 0 && <Tag color="blue" style={{ marginLeft: 4 }}>{logs.length}</Tag>}
+            </Button>
+          )}
           {selectedRowKeys.length > 0 && (
             <span style={{ color: '#1677ff', fontWeight: 500 }}>已选 {selectedRowKeys.length} 条需求</span>
           )}
@@ -321,6 +363,33 @@ const TestCaseGen: React.FC = () => {
         onSave={handleSaveEdit}
         onCancel={() => setEditModalVisible(false)}
       />
+
+      {logPanelExpanded && logs.length > 0 && (
+        <Card
+          size="small"
+          title={
+            <Space>
+              <Text strong>生成日志</Text>
+              <Tag color="blue">{logs.length} 条</Tag>
+            </Space>
+          }
+          extra={
+            <Space>
+              <Popconfirm title="确认清空？" onConfirm={handleClearLogs} okText="清空" cancelText="取消">
+                <Button size="small" danger icon={<ClearOutlined />}>清空</Button>
+              </Popconfirm>
+              <Button size="small" icon={<UpOutlined />} onClick={() => setLogPanelExpanded(false)} />
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+        >
+          <div style={{ maxHeight: 400, overflow: 'auto' }}>
+            <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#fafafa', padding: 8, margin: 0 }}>
+              {JSON.stringify(logs[0], null, 2)}
+            </pre>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

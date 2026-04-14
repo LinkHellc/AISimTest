@@ -60,20 +60,19 @@ def export_to_excel(
             category_cn = '正例' if category == 'positive' else '反例'
             test_time = tc.get('testTime', 4)
             steps = tc.get('steps', [])
-            harness_name = f"{req_id}_Tc_{tc_idx}".replace('.', '_')
+            harness_name = f"MIL_{req_id}_Tc_{tc_idx}".replace('.', '_')
             req_title_val = req_titles.get(req_id, tc.get('requirementId', ''))
 
             test_model = tc.get('testModel', '')
             test_unit_model = tc.get('testUnitModel', '')
             if not steps:
                 _write_init_row(ws, row_idx, test_model, test_unit_model, harness_name, test_time,
-                                f'{category_cn} - {tc_name}', '')
+                                f'{category_cn} - {tc_name}')
                 row_idx += 1
                 continue
 
-            precondition = tc.get('precondition', '')
             _write_init_row(ws, row_idx, test_model, test_unit_model, harness_name, test_time,
-                            f'{category_cn} - {tc_name}', precondition)
+                            f'{category_cn} - {tc_name}')
             row_idx += 1
 
             for i, step in enumerate(steps):
@@ -96,9 +95,10 @@ def export_to_excel(
                     when_cond = step.get('WhenCondition', 't>0.5 && t<4.5')
                     ts_verify = step.get('TestVerify', '')
                     ts_desc = step.get('TestDescription', '')
+                    test_type = step.get('testType', '')
 
                 _write_ts_row(ws, row_idx, test_time, f'TS{ts_num}', ts_action,
-                               ts_transition, ts_next, tv_name, when_cond, ts_verify, ts_desc)
+                               ts_transition, ts_next, tv_name, when_cond, ts_verify, ts_desc, test_type)
                 row_idx += 1
 
             row_idx += 1
@@ -131,7 +131,7 @@ def _write_init_row(ws, row_idx, test_model, test_unit_model, harness_name, test
 
 
 def _write_ts_row(ws, row_idx, test_time, ts_name, ts_action, ts_transition,
-                  ts_next, tv_name, when_cond, ts_verify, ts_desc):
+                  ts_next, tv_name, when_cond, ts_verify, ts_desc, test_type=''):
     ws.cell(row=row_idx, column=1, value='').border = THIN_BORDER
     ws.cell(row=row_idx, column=2, value='').border = THIN_BORDER
     ws.cell(row=row_idx, column=3, value='').border = THIN_BORDER
@@ -145,7 +145,7 @@ def _write_ts_row(ws, row_idx, test_time, ts_name, ts_action, ts_transition,
     ws.cell(row=row_idx, column=11, value=when_cond).border = THIN_BORDER
     ws.cell(row=row_idx, column=12, value=ts_verify).border = THIN_BORDER
     ws.cell(row=row_idx, column=13, value=ts_desc).border = THIN_BORDER
-    ws.cell(row=row_idx, column=14, value='').border = THIN_BORDER
+    ws.cell(row=row_idx, column=14, value=test_type).border = THIN_BORDER
     ws.cell(row=row_idx, column=15, value=ts_desc).border = THIN_BORDER
     for col in range(1, 16):
         ws.cell(row=row_idx, column=col).alignment = CELL_ALIGNMENT

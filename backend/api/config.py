@@ -5,7 +5,8 @@ from sqlalchemy import select
 from cryptography.fernet import Fernet
 
 from database import get_db, DATA_DIR
-from models.base import LLMConfig as LLMConfigModel
+from models.base import LLMConfig as LLMConfigModel, PromptTemplate as PromptTemplateModel
+from datetime import datetime
 
 router = APIRouter(prefix='/api/config', tags=['config'])
 
@@ -140,3 +141,100 @@ async def test_llm_connection(data: dict, db: AsyncSession = Depends(get_db)):
             return {'success': True, 'data': {'success': False, 'message': error_msg}}
     except Exception as e:
         return {'success': True, 'data': {'success': False, 'message': str(e)}}
+
+
+# ========== 提示词模板 API ==========
+
+@router.get('/prompts')
+async def get_prompt_templates(db: AsyncSession = Depends(get_db)):
+    """获取所有提示词模板"""
+    from core.prompt_templates import TEST_CASE_SYSTEM_PROMPT, TEST_CASE_USER_TEMPLATE
+
+    defaults = {
+        'test_case_system': (TEST_CASE_SYSTEM_PROMPT, '测试用例生成 - System Prompt'),
+        'test_case_user': (TEST_CASE_USER_TEMPLATE, '测试用例生成 - User Prompt'),
+    }
+
+    # Initialize default templates if not exist
+    for template_id, (content, description) in defaults.items():
+        result = await db.execute(select(PromptTemplateModel).where(PromptTemplateModel.id == template_id))
+        template = result.scalar_one_or_none()
+        if not template:
+            template = PromptTemplateModel(
+                id=template_id,
+                content=content,
+                description=description,
+                updated_at=datetime.now().isoformat(),
+            )
+            db.add(template)
+    await db.commit()
+
+    result = await db.execute(select(PromptTemplateModel))
+    templates = result.scalars().all()
+    return {
+        'success': True,
+        'data': [
+            {
+                'id': t.id,
+                'name': t.description or t.id.replace('_', ' ').title(),
+                'content': t.content,
+                'description': t.description,
+                'updated_at': t.updated_at,
+            }
+            for t in templates
+        ],
+    }
+
+
+@router.put('/prompts/{template_id}')
+async def update_prompt_template(template_id: str, data: dict, db: AsyncSession = Depends(get_db)):
+    """更新提示词模板"""
+    result = await db.execute(select(PromptTemplateModel).where(PromptTemplateModel.id == template_id))
+    template = result.scalar_one_or_none()
+
+    if not template:
+        template = PromptTemplateModel(id=template_id)
+        db.add(template)
+
+    if 'content' in data:
+        template.content = data['content']
+    if 'description' in data:
+        template.description = data['description']
+    template.updated_at = datetime.now().isoformat()
+
+    await db.commit()
+    return {'success': True}
+
+
+@router.post('/prompts/{template_id}/reset')
+async def reset_prompt_template(template_id: str, db: AsyncSession = Depends(get_db)):
+    """重置提示词模板到默认值"""
+    from core.prompt_templates import TEST_CASE_SYSTEM_PROMPT, TEST_CASE_USER_TEMPLATE
+
+    defaults = {
+        'test_case_system': (TEST_CASE_SYSTEM_PROMPT, '测试用例生成 - System Prompt'),
+        'test_case_user': (TEST_CASE_USER_TEMPLATE, '测试用例生成 - User Prompt'),
+    }
+
+    if template_id not in defaults:
+        raise HTTPException(status_code=404, detail='未知模板')
+
+    content, description = defaults[template_id]
+    result = await db.execute(select(PromptTemplateModel).where(PromptTemplateModel.id == template_id))
+    template = result.scalar_one_or_none()
+
+    if template:
+        template.content = content
+        template.description = description
+        template.updated_at = datetime.now().isoformat()
+    else:
+        template = PromptTemplateModel(
+            id=template_id,
+            content=content,
+            description=description,
+            updated_at=datetime.now().isoformat(),
+        )
+        db.add(template)
+
+    await db.commit()
+    return {'success': True}

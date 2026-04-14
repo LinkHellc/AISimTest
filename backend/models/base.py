@@ -75,6 +75,16 @@ class RequirementSignalLink(Base):
     signal_id = Column(String, nullable=False)
 
 
+class PromptTemplate(Base):
+    """提示词模板配置"""
+    __tablename__ = 'prompt_templates'
+
+    id = Column(String, primary_key=True)  # 如 'test_case_system', 'test_case_user'
+    content = Column(Text, default='')    # 模板内容
+    description = Column(String, default='')  # 模板描述
+    updated_at = Column(String, default='')  # 更新时间
+
+
 class RequirementInterface(Base):
     """需求接口绑定表 - 记录需求与输入输出信号变量的关联"""
     __tablename__ = 'requirement_interfaces'
