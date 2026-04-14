@@ -60,17 +60,19 @@ def export_to_excel(
             category_cn = '正例' if category == 'positive' else '反例'
             test_time = tc.get('testTime', 4)
             steps = tc.get('steps', [])
-            harness_name = f"{req_id}_Tc_{tc_idx}"
+            harness_name = f"{req_id}_Tc_{tc_idx}".replace('.', '_')
             req_title_val = req_titles.get(req_id, tc.get('requirementId', ''))
 
+            test_model = tc.get('testModel', '')
+            test_unit_model = tc.get('testUnitModel', '')
             if not steps:
-                _write_init_row(ws, row_idx, req_title_val, harness_name, test_time,
+                _write_init_row(ws, row_idx, test_model, test_unit_model, harness_name, test_time,
                                 f'{category_cn} - {tc_name}', '')
                 row_idx += 1
                 continue
 
             precondition = tc.get('precondition', '')
-            _write_init_row(ws, row_idx, req_title_val, harness_name, test_time,
+            _write_init_row(ws, row_idx, test_model, test_unit_model, harness_name, test_time,
                             f'{category_cn} - {tc_name}', precondition)
             row_idx += 1
 
@@ -111,9 +113,9 @@ def export_to_excel(
     return output_path
 
 
-def _write_init_row(ws, row_idx, req_title_val, harness_name, test_time, description, precondition=''):
-    ws.cell(row=row_idx, column=1, value='').border = THIN_BORDER
-    ws.cell(row=row_idx, column=2, value=req_title_val).border = THIN_BORDER
+def _write_init_row(ws, row_idx, test_model, test_unit_model, harness_name, test_time, description, precondition=''):
+    ws.cell(row=row_idx, column=1, value=test_model).border = THIN_BORDER
+    ws.cell(row=row_idx, column=2, value=test_unit_model).border = THIN_BORDER
     ws.cell(row=row_idx, column=3, value=harness_name).border = THIN_BORDER
     ws.cell(row=row_idx, column=4, value=1).border = THIN_BORDER
     ws.cell(row=row_idx, column=5, value=test_time).border = THIN_BORDER

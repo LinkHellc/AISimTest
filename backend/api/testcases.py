@@ -68,6 +68,8 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
             expected_result=case.get('expectedResult', ''),
             category=case['category'],
             signal_refs=case.get('signals', []),
+            test_model=case.get('testModel', ''),
+            test_unit_model=case.get('testUnitModel', ''),
         )
         db.add(db_case)
     await db.commit()
@@ -92,6 +94,8 @@ async def get_test_cases(db: AsyncSession = Depends(get_db)):
                 'expectedResult': tc.expected_result,
                 'category': tc.category,
                 'signals': tc.signal_refs or [],
+                'testModel': tc.test_model or '',
+                'testUnitModel': tc.test_unit_model or '',
             }
             for tc in test_cases
         ],
@@ -111,6 +115,8 @@ async def update_test_case(tc_id: str, data: dict, db: AsyncSession = Depends(ge
         'steps': 'steps',
         'expectedResult': 'expected_result',
         'category': 'category',
+        'testModel': 'test_model',
+        'testUnitModel': 'test_unit_model',
     }
     for key, column in field_map.items():
         if key in data:
@@ -138,9 +144,10 @@ async def export_test_cases_excel(data: dict, db: AsyncSession = Depends(get_db)
     if not test_cases:
         raise HTTPException(status_code=404, detail='没有可导出的测试用例')
 
-    # 查询需求标题（用于 sheet 名称）
+    # 查询需求信息（标题、test_model、test_unit_model）
     req_result = await db.execute(select(RequirementModel))
-    req_titles = {r.id: r.title for r in req_result.scalars().all()}
+    req_map = {r.id: {'title': r.title, 'test_model': r.test_model or '', 'test_unit_model': r.test_unit_model or ''}
+                for r in req_result.scalars().all()}
 
     cases_data = [
         {
@@ -149,17 +156,24 @@ async def export_test_cases_excel(data: dict, db: AsyncSession = Depends(get_db)
             'steps': tc.steps or [],
             'expectedResult': tc.expected_result, 'category': tc.category,
             'signals': tc.signal_refs or [],
+            # 从需求级别读取 testModel/testUnitModel
+            'testModel': req_map.get(tc.requirement_id, {}).get('test_model', ''),
+            'testUnitModel': req_map.get(tc.requirement_id, {}).get('test_unit_model', ''),
         }
         for tc in test_cases
     ]
 
+    # 生成文件名：优先用 testModel，其次需求标题
+    first_req_id = test_cases[0].requirement_id if test_cases else None
+    first_test_model = req_map.get(first_req_id, {}).get('test_model', '') if first_req_id else ''
+    filename = f'{first_test_model}_TestHarness.xlsx' if first_test_model else '测试用例.xlsx'
+
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
-        # req_title 参数用于单 sheet 场景；多 sheet 时用 cases_data 中的 requirementId 查表
-        export_to_excel(cases_data, tmp.name, req_titles=req_titles)
+        export_to_excel(cases_data, tmp.name, req_titles={k: v['title'] for k, v in req_map.items()})
         return FileResponse(
             tmp.name,
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            filename='测试用例.xlsx',
+            filename=filename,
         )
 
 

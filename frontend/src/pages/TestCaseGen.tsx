@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Typography, Table, Button, Space, Card, message, Tag, Popconfirm } from 'antd';
+import { Typography, Table, Button, Space, Card, message, Tag, Popconfirm, Input } from 'antd';
 import { ThunderboltOutlined, FileExcelOutlined, FileWordOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import TestCaseEditModal from '../components/TestCase/TestCaseEditModal';
 import { testCaseApi, requirementApi } from '../services/api';
@@ -104,10 +104,17 @@ const TestCaseGen: React.FC = () => {
     try {
       const ids = testCases.length > 0 ? testCases.map(tc => tc.id) : undefined;
       const res = await testCaseApi.exportExcel(ids);
+      // 从 Content-Disposition 解析文件名
+      const cd = res.headers['content-disposition'];
+      let filename = '测试用例.xlsx';
+      if (cd) {
+        const match = cd.match(/filename[^;=\n]*=(?:(\\?['"])(.*?)\1|([^;\n]*))/i);
+        if (match) filename = decodeURIComponent(match[2] || match[3] || '测试用例.xlsx');
+      }
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', '测试用例.xlsx');
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -145,8 +152,40 @@ const TestCaseGen: React.FC = () => {
       title: '功能需求名称',
       dataIndex: 'title',
       key: 'title',
-      width: 180,
+      width: 150,
       ellipsis: true,
+    },
+    {
+      title: 'TestModel',
+      dataIndex: 'testModel',
+      key: 'testModel',
+      width: 120,
+      render: (val: string, record: Requirement) => (
+        <div onClick={e => e.stopPropagation()}>
+          <Input
+            size="small"
+            placeholder="模型名称"
+            defaultValue={val || ''}
+            onBlur={e => requirementApi.updateRequirement(record.id, { testModel: e.target.value })}
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'TestUnitModel',
+      dataIndex: 'testUnitModel',
+      key: 'testUnitModel',
+      width: 120,
+      render: (val: string, record: Requirement) => (
+        <div onClick={e => e.stopPropagation()}>
+          <Input
+            size="small"
+            placeholder="单元名称"
+            defaultValue={val || ''}
+            onBlur={e => requirementApi.updateRequirement(record.id, { testUnitModel: e.target.value })}
+          />
+        </div>
+      ),
     },
     {
       title: '信号接口',

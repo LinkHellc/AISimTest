@@ -105,6 +105,8 @@ async def get_requirements(db: AsyncSession = Depends(get_db)):
                 'executionBody': r.execution_body or '',
                 'exitCondition': r.exit_condition or '',
                 'postExitBehavior': r.post_exit_behavior or '',
+                'testModel': r.test_model or '',
+                'testUnitModel': r.test_unit_model or '',
             }
             for r in requirements
         ],
@@ -127,6 +129,8 @@ async def update_requirement(req_id: str, data: dict, db: AsyncSession = Depends
         'executionBody': 'execution_body',
         'exitCondition': 'exit_condition',
         'postExitBehavior': 'post_exit_behavior',
+        'testModel': 'test_model',
+        'testUnitModel': 'test_unit_model',
     }
     for key, column in column_map.items():
         if key in data:

@@ -16,6 +16,8 @@ class Requirement(Base):
     execution_body = Column(Text, default='')       # 功能进入后执行
     exit_condition = Column(Text, default='')       # 功能退出条件
     post_exit_behavior = Column(Text, default='')  # 功能退出后执行
+    test_model = Column(String, default='')        # 测试模型名称（用户填写）
+    test_unit_model = Column(String, default='')   # 测试单元模型名称（用户填写）
 
 
 class Signal(Base):
@@ -49,6 +51,8 @@ class TestCase(Base):
     category = Column(String, default='positive')
     signal_refs = Column(JSON, default=list)
     test_time = Column(String, default='4')
+    test_model = Column(String, default='')    # 测试模型名称（用户填写）
+    test_unit_model = Column(String, default='') # 测试单元模型名称（用户填写）
 
 
 class LLMConfig(Base):
