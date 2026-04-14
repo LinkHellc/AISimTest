@@ -39,6 +39,9 @@ async def _get_llm_config() -> dict:
 
 
 def _parse_json_response(content: str) -> list[dict]:
+    # Strip thinking blocks first (e.g., <think>...</think>)
+    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+
     # Try direct parse
     try:
         result = json.loads(content)
@@ -57,17 +60,16 @@ def _parse_json_response(content: str) -> list[dict]:
         except json.JSONDecodeError:
             pass
 
-    # Try to find [ ] wrapped content
-    bracket_match = re.search(r'\[.*\]', content, re.DOTALL)
-    if bracket_match:
+    # Find the last [ ... ] block that parses as a list
+    for match in re.finditer(r'\[.*\]', content, re.DOTALL):
         try:
-            result = json.loads(bracket_match.group())
+            result = json.loads(match.group())
             if isinstance(result, list):
                 return result
         except json.JSONDecodeError:
-            pass
+            continue
 
-    raise ValueError(f'无法解析 LLM 响应为 JSON，原始内容: {content[:200]}')
+    raise ValueError(f'无法解析 LLM 响应为 JSON，原始内容: {content[:300]}')
 
 
 async def generate_test_cases_for_requirement(
@@ -77,11 +79,27 @@ async def generate_test_cases_for_requirement(
 ) -> list[dict]:
     config = await _get_llm_config()
 
+    # 构建完整的需求描述（8个字段）
+    parts = []
+    if requirement.get('scene_description'):
+        parts.append(f"场景描述: {requirement['scene_description']}")
+    if requirement.get('function_description'):
+        parts.append(f"功能描述: {requirement['function_description']}")
+    if requirement.get('entry_condition'):
+        parts.append(f"功能触发条件: {requirement['entry_condition']}")
+    if requirement.get('execution_body'):
+        parts.append(f"功能进入后执行: {requirement['execution_body']}")
+    if requirement.get('exit_condition'):
+        parts.append(f"功能退出条件: {requirement['exit_condition']}")
+    if requirement.get('post_exit_behavior'):
+        parts.append(f"功能退出后执行: {requirement['post_exit_behavior']}")
+    full_description = '\n'.join(parts) if parts else '无详细描述'
+
     system_prompt, user_prompt = build_test_case_prompt(
         requirement_id=requirement['id'],
         requirement_title=requirement['title'],
-        requirement_description=requirement.get('description', ''),
-        acceptance_criteria=requirement.get('acceptance_criteria', []),
+        requirement_description=full_description,
+        acceptance_criteria=[],
         signals=signals,
         num_cases=num_cases,
     )
@@ -99,11 +117,24 @@ async def generate_test_cases_for_requirement(
                 {'role': 'user', 'content': user_prompt},
             ],
             temperature=config['temperature'],
-            max_tokens=config['max_tokens'],
+            max_tokens=max(16000, config['max_tokens']),
         )
         return response.choices[0].message.content or ''
 
-    content = await asyncio.to_thread(_call_llm)
+    # 重试机制：失败后等待1秒，最多重试3次
+    content = None
+    last_error = None
+    for attempt in range(3):
+        try:
+            content = await asyncio.to_thread(_call_llm)
+            break
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                import time
+                time.sleep(1)
+    if content is None:
+        raise RuntimeError(f'LLM 调用失败（已重试3次）: {last_error}')
     parsed_cases = _parse_json_response(content)
 
     test_cases = []
@@ -113,8 +144,8 @@ async def generate_test_cases_for_requirement(
             'name': case.get('name', '未命名用例'),
             'requirementId': requirement['id'],
             'precondition': case.get('precondition', ''),
+            'testTime': case.get('testTime', 4),
             'steps': case.get('steps', []),
-            'expectedResult': case.get('expectedResult', ''),
             'category': case.get('category', 'positive'),
             'signals': signals or [],
         })

@@ -11,11 +11,13 @@ from openai import OpenAI
 class ParsedRequirement(BaseModel):
     id: str
     title: str
-    description: str
-    acceptance_criteria: List[str]
-    parent_id: Optional[str] = None
-    source_location: str
-    level: int
+    signal_interfaces: List[str] = []   # 信号接口名称列表
+    scene_description: str = ''          # 场景描述
+    function_description: str = ''       # 功能描述
+    entry_condition: str = ''            # 功能触发条件
+    execution_body: str = ''             # 功能进入后执行
+    exit_condition: str = ''            # 功能退出条件
+    post_exit_behavior: str = ''        # 功能退出后执行
 
 
 # ---------- 文档文本提取 ----------
@@ -42,25 +44,37 @@ def extract_docx_text(file_path: str) -> str:
 
 # ---------- LLM 需求解析 Prompt ----------
 
-DOC_PARSE_SYSTEM_PROMPT = """你是一名汽车空调热管理系统的需求分析专家。你的任务是阅读用户提供的需求文档原始文本，将其条目化为结构化的需求列表。
+DOC_PARSE_SYSTEM_PROMPT = """你是一名汽车空调热管理系统的需求分析专家。你的任务是将需求文档原始文本解析为结构化的功能需求条目。
 
-解析原则：
-1. 识别文档中的章节标题、功能模块名、信号接口、场景描述等，作为独立的需求条目
-2. 每条需求必须有明确的标题和完整的描述内容
-3. 识别父子层级关系（如"5.9.2"是"5.9.2.3"的父级）
-4. 将触发条件、执行逻辑、退出条件等归类到对应需求的描述中
-5. 如果文档中有信号名称（如 gCbnSys_xxx、gCAN_xxx），在描述中保留这些信号名
-6. 如果文档中引用了具体参数值（如 BltCallSts=0x1），也完整保留
-7. 尽可能保留文档中的所有信息，不要遗漏
+**一个完整需求的格式必须包含以下8个字段：**
+
+1. **title** - 功能需求名称（如"蓝牙通话降风速"）
+2. **signalInterfaces** - 信号接口列表，从文档中提取相关的输入/输出信号变量名（如 gCAN_BltCallSts、gCbnSys_xxx），支持后续 Excel 导入更新信息；若文档未提及则为空数组
+3. **sceneDescription** - 场景描述，描述功能在什么工况下被触发
+4. **functionDescription** - 功能描述，概括功能的整体行为
+5. **entryCondition** - 功能触发条件，满足哪些条件时功能激活（如信号值、阈值、状态组合）
+6. **executionBody** - 功能进入后执行，功能激活后系统执行的具体动作
+7. **exitCondition** - 功能退出条件，满足哪些条件时功能退出
+8. **postExitBehavior** - 功能退出后执行，功能退出后系统如何恢复或切换状态
+
+**解析原则：**
+- 章节编号（如 5.9.2.3）作为需求 ID，一个章节 = 一个需求节点
+- 章节标题（"5.9.2.3 蓝牙通话降风速"）提取为 title
+- 功能描述/备注/注意等信息全部归入上述8个字段，不拆分为子需求
+- 保留文档中的所有信号名称、参数值（BlCallSts=0x1、FRZCU_PowerMode=0x1、温度阈值等）
+- 只输出真正包含功能逻辑的章节，概述性章节（如只有标题无实质内容的）不单独成节点
 
 输出格式为 JSON 数组，每个元素结构如下：
 {
-  "id": "需求编号，如文档中的 5.9.2.1 或自动生成的 REQ-001",
-  "title": "需求标题，简明扼要",
-  "description": "需求的完整描述，包含所有条件、逻辑、信号引用等详细信息",
-  "acceptanceCriteria": ["验收标准1", "验收标准2"],
-  "parentId": "父级需求ID，顶级需求为 null",
-  "level": 层级数字，顶级为1
+  "id": "需求编号，如 REQ-001 或文档章节号 5.9.2.3",
+  "title": "功能需求名称",
+  "signalInterfaces": ["信号接口名称列表"],
+  "sceneDescription": "场景描述",
+  "functionDescription": "功能描述",
+  "entryCondition": "功能触发条件",
+  "executionBody": "功能进入后执行",
+  "exitCondition": "功能退出条件",
+  "postExitBehavior": "功能退出后执行"
 }"""
 
 
@@ -135,7 +149,20 @@ async def parse_docx_with_llm(file_path: str, llm_config: dict) -> List[ParsedRe
         )
         return response.choices[0].message.content or ''
 
-    content = await asyncio.to_thread(_call_llm)
+    # 重试机制：失败后等待1秒，最多重试3次
+    content = None
+    last_error = None
+    for attempt in range(3):
+        try:
+            content = await asyncio.to_thread(_call_llm)
+            break
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                import time
+                time.sleep(1)
+    if content is None:
+        raise RuntimeError(f'LLM 调用失败（已重试3次）: {last_error}')
     parsed_raw = _parse_json_response(content)
 
     # 转换为 ParsedRequirement，确保必填字段
@@ -155,22 +182,21 @@ async def parse_docx_with_llm(file_path: str, llm_config: dict) -> List[ParsedRe
             counter += 1
         seen_ids.add(req_id)
 
-        title = str(item.get('title', '')).strip()
-        description = str(item.get('description', '')).strip()
-        criteria = item.get('acceptanceCriteria', item.get('acceptance_criteria', []))
-        if isinstance(criteria, str):
-            criteria = [c.strip() for c in criteria.split('\n') if c.strip()]
-        parent_id = item.get('parentId', item.get('parent_id'))
-        level = int(item.get('level', 1))
+        # 提取8个字段
+        signal_interfaces = item.get('signalInterfaces', [])
+        if isinstance(signal_interfaces, str):
+            signal_interfaces = [s.strip() for s in signal_interfaces.split('\n') if s.strip()]
 
         req = ParsedRequirement(
             id=req_id,
-            title=title or req_id,
-            description=description,
-            acceptance_criteria=criteria or [],
-            parent_id=str(parent_id) if parent_id and str(parent_id) != 'None' and str(parent_id).strip() else None,
-            source_location=f"LLM解析: {title[:50]}" if title else 'LLM解析',
-            level=max(1, min(level, 6)),
+            title=str(item.get('title', '')).strip() or req_id,
+            signal_interfaces=signal_interfaces,
+            scene_description=str(item.get('sceneDescription', '')).strip(),
+            function_description=str(item.get('functionDescription', '')).strip(),
+            entry_condition=str(item.get('entryCondition', '')).strip(),
+            execution_body=str(item.get('executionBody', '')).strip(),
+            exit_condition=str(item.get('exitCondition', '')).strip(),
+            post_exit_behavior=str(item.get('postExitBehavior', '')).strip(),
         )
         requirements.append(req)
 

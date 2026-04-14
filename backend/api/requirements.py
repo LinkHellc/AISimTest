@@ -7,6 +7,7 @@ from sqlalchemy import select, delete
 from database import get_db, get_db_session
 from models.base import Requirement as RequirementModel, LLMConfig as LLMConfigModel
 from core.doc_parser import parse_docx_with_llm
+from core.interface_parser import parse_requirement_interface_excel
 from api.config import decrypt_value
 
 router = APIRouter(prefix='/api/requirements', tags=['requirements'])
@@ -73,11 +74,13 @@ async def upload_requirements(file: UploadFile = File(...), db: AsyncSession = D
         db_req = RequirementModel(
             id=req.id,
             title=req.title,
-            description=req.description,
-            acceptance_criteria=req.acceptance_criteria,
-            parent_id=req.parent_id,
-            source_location=req.source_location,
-            level=req.level,
+            signal_interfaces=req.signal_interfaces,
+            scene_description=req.scene_description,
+            function_description=req.function_description,
+            entry_condition=req.entry_condition,
+            execution_body=req.execution_body,
+            exit_condition=req.exit_condition,
+            post_exit_behavior=req.post_exit_behavior,
         )
         db.add(db_req)
     await db.commit()
@@ -95,11 +98,13 @@ async def get_requirements(db: AsyncSession = Depends(get_db)):
             {
                 'id': r.id,
                 'title': r.title,
-                'description': r.description,
-                'acceptanceCriteria': r.acceptance_criteria or [],
-                'parentId': r.parent_id,
-                'sourceLocation': r.source_location,
-                'level': r.level,
+                'signalInterfaces': r.signal_interfaces or [],
+                'sceneDescription': r.scene_description or '',
+                'functionDescription': r.function_description or '',
+                'entryCondition': r.entry_condition or '',
+                'executionBody': r.execution_body or '',
+                'exitCondition': r.exit_condition or '',
+                'postExitBehavior': r.post_exit_behavior or '',
             }
             for r in requirements
         ],
@@ -115,11 +120,13 @@ async def update_requirement(req_id: str, data: dict, db: AsyncSession = Depends
 
     column_map = {
         'title': 'title',
-        'description': 'description',
-        'acceptanceCriteria': 'acceptance_criteria',
-        'parentId': 'parent_id',
-        'sourceLocation': 'source_location',
-        'level': 'level',
+        'signalInterfaces': 'signal_interfaces',
+        'sceneDescription': 'scene_description',
+        'functionDescription': 'function_description',
+        'entryCondition': 'entry_condition',
+        'executionBody': 'execution_body',
+        'exitCondition': 'exit_condition',
+        'postExitBehavior': 'post_exit_behavior',
     }
     for key, column in column_map.items():
         if key in data:
@@ -127,3 +134,60 @@ async def update_requirement(req_id: str, data: dict, db: AsyncSession = Depends
 
     await db.commit()
     return {'success': True}
+
+
+@router.delete('/{req_id}')
+async def delete_requirement(req_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RequirementModel).where(RequirementModel.id == req_id))
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail='需求不存在')
+    await db.execute(delete(RequirementModel).where(RequirementModel.id == req_id))
+    await db.commit()
+    return {'success': True}
+
+
+@router.post('/{req_id}/interfaces')
+async def upload_requirement_interface(
+    req_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """上传接口表 Excel，为指定需求导入信号接口（追加到 signalInterfaces 列表）"""
+    if not file.filename or not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail='仅支持 .xlsx/.xls 格式')
+
+    # 查找需求
+    result = await db.execute(select(RequirementModel).where(RequirementModel.id == req_id))
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail='需求不存在')
+
+    # 保存临时文件
+    temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'temp')
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_path = os.path.join(temp_dir, f'{uuid.uuid4()}_{file.filename}')
+    with open(temp_path, 'wb') as f:
+        f.write(await file.read())
+
+    try:
+        interfaces = parse_requirement_interface_excel(temp_path)
+        # 以最新导入为准：直接替换现有信号列表
+        new_signals = []
+        for iface in interfaces:
+            if iface.signal_name:
+                new_signals.append({'name': iface.signal_name, 'type': iface.interface_name})
+
+        req.signal_interfaces = new_signals
+        await db.commit()
+        return {
+            'success': True,
+            'data': {
+                'added': len(new_signals),
+                'total': len(new_signals),
+                'signals': new_signals,
+            }
+        }
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)

@@ -1,6 +1,33 @@
 import { create } from 'zustand';
 import type { Requirement, Signal, TestCase, GenerationProgress } from '../types';
 
+export interface RequirementInterface {
+  id: string;
+  requirementId: string;
+  interfaceName: 'Input' | 'Output';
+  signalName: string;
+  description: string;
+  sourceDoc: string;
+}
+
+export interface SignalLibraryItem {
+  id: string;
+  name: string;
+  description: string;
+  dataType: string;
+  unit: string;
+  valueTable: string;
+  initialValue: string;
+  bus: string;
+  storageClass: string;
+  dimension: string;
+  factor: number;
+  offset: number;
+  minValue: number | null;
+  maxValue: number | null;
+  sourceFile: string;
+}
+
 interface AppState {
   // 需求相关
   requirements: Requirement[];
@@ -10,9 +37,18 @@ interface AppState {
   selectAllRequirements: () => void;
   clearRequirementSelection: () => void;
 
+  // 需求接口相关
+  requirementInterfaces: RequirementInterface[];
+  setRequirementInterfaces: (interfaces: RequirementInterface[]) => void;
+  addRequirementInterface: (iface: RequirementInterface) => void;
+
   // 信号相关
   signals: Signal[];
   setSignals: (signals: Signal[]) => void;
+
+  // 信号库相关
+  signalLibrary: SignalLibraryItem[];
+  setSignalLibrary: (signals: SignalLibraryItem[]) => void;
 
   // 测试用例相关
   testCases: TestCase[];
@@ -45,6 +81,16 @@ export const useAppStore = create<AppState>((set) => ({
   // 信号相关
   signals: [],
   setSignals: (signals) => set({ signals }),
+
+  // 需求接口相关
+  requirementInterfaces: [],
+  setRequirementInterfaces: (interfaces) => set({ requirementInterfaces: interfaces }),
+  addRequirementInterface: (iface) =>
+    set((state) => ({ requirementInterfaces: [...state.requirementInterfaces, iface] })),
+
+  // 信号库相关
+  signalLibrary: [],
+  setSignalLibrary: (signals) => set({ signalLibrary: signals }),
 
   // 测试用例相关
   testCases: [],

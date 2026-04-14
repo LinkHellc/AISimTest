@@ -34,8 +34,12 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
         req_dict = {
             'id': req.id,
             'title': req.title,
-            'description': req.description,
-            'acceptance_criteria': req.acceptance_criteria or [],
+            'scene_description': req.scene_description or '',
+            'function_description': req.function_description or '',
+            'entry_condition': req.entry_condition or '',
+            'execution_body': req.execution_body or '',
+            'exit_condition': req.exit_condition or '',
+            'post_exit_behavior': req.post_exit_behavior or '',
         }
         signals_dict = [
             {'name': s.name, 'min_value': s.min_value, 'max_value': s.max_value,
@@ -54,8 +58,9 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
             name=case['name'],
             requirement_id=case['requirementId'],
             precondition=case['precondition'],
+            test_time=str(case.get('testTime', 4)),
             steps=case['steps'],
-            expected_result=case['expectedResult'],
+            expected_result=case.get('expectedResult', ''),
             category=case['category'],
             signal_refs=case.get('signals', []),
         )
@@ -77,6 +82,7 @@ async def get_test_cases(db: AsyncSession = Depends(get_db)):
                 'name': tc.name,
                 'requirementId': tc.requirement_id,
                 'precondition': tc.precondition,
+                'testTime': int(tc.test_time) if tc.test_time else 4,
                 'steps': tc.steps or [],
                 'expectedResult': tc.expected_result,
                 'category': tc.category,
@@ -127,10 +133,17 @@ async def export_test_cases_excel(data: dict, db: AsyncSession = Depends(get_db)
     if not test_cases:
         raise HTTPException(status_code=404, detail='没有可导出的测试用例')
 
+    # 查询需求标题（用于 sheet 名称）
+    req_result = await db.execute(
+        select(RequirementModel.id, RequirementModel.title)
+    )
+    req_titles = {r.id: r.title for r in req_result.scalars().all()}
+
     cases_data = [
         {
             'id': tc.id, 'name': tc.name, 'requirementId': tc.requirement_id,
-            'precondition': tc.precondition, 'steps': tc.steps or [],
+            'precondition': tc.precondition, 'testTime': int(tc.test_time) if tc.test_time else 4,
+            'steps': tc.steps or [],
             'expectedResult': tc.expected_result, 'category': tc.category,
             'signals': tc.signal_refs or [],
         }
@@ -138,7 +151,8 @@ async def export_test_cases_excel(data: dict, db: AsyncSession = Depends(get_db)
     ]
 
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
-        export_to_excel(cases_data, tmp.name)
+        # req_title 参数用于单 sheet 场景；多 sheet 时用 cases_data 中的 requirementId 查表
+        export_to_excel(cases_data, tmp.name, req_titles=req_titles)
         return FileResponse(
             tmp.name,
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

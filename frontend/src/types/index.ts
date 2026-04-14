@@ -2,13 +2,13 @@
 export interface Requirement {
   id: string;
   title: string;
-  description: string;
-  acceptanceCriteria: string[];
-  parentId: string | null;
-  sourceLocation: string;
-  level: number;
-  children?: Requirement[];
-  selected?: boolean;
+  signalInterfaces: { name: string; type: 'Input' | 'Output' }[];  // 信号接口列表
+  sceneDescription: string;     // 场景描述
+  functionDescription: string;  // 功能描述
+  entryCondition: string;       // 功能触发条件
+  executionBody: string;        // 功能进入后执行
+  exitCondition: string;        // 功能退出条件
+  postExitBehavior: string;    // 功能退出后执行
 }
 
 // 信号定义

@@ -4,6 +4,7 @@ import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import AppLayout from './components/Layout/AppLayout';
 import RequirementImport from './pages/RequirementImport';
+import Requirements from './pages/Requirements';
 import SignalMatrix from './pages/SignalMatrix';
 import TestCaseGen from './pages/TestCaseGen';
 import Settings from './pages/Settings';
@@ -16,6 +17,7 @@ const App: React.FC = () => {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<RequirementImport />} />
             <Route path="requirements" element={<RequirementImport />} />
+            <Route path="requirements/list" element={<Requirements />} />
             <Route path="signals" element={<SignalMatrix />} />
             <Route path="testcases" element={<TestCaseGen />} />
             <Route path="settings" element={<Settings />} />

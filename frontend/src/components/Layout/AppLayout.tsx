@@ -18,6 +18,11 @@ const menuItems = [
     label: '需求导入',
   },
   {
+    key: '/requirements/list',
+    icon: <FileTextOutlined />,
+    label: '需求管理',
+  },
+  {
     key: '/signals',
     icon: <ApiOutlined />,
     label: '信号管理',

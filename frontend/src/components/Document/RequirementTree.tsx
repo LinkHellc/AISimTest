@@ -1,6 +1,5 @@
-import React, { useMemo } from 'react';
-import { Tree, Checkbox, Space, Typography } from 'antd';
-import type { TreeDataNode } from 'antd';
+import React from 'react';
+import { Checkbox, Space, Typography, List } from 'antd';
 import { useAppStore } from '../../stores/appStore';
 
 const { Text } = Typography;
@@ -14,34 +13,6 @@ const RequirementTree: React.FC<RequirementTreeProps> = ({ onSelect }) => {
   const selectedRequirementIds = useAppStore((s) => s.selectedRequirementIds);
   const selectAllRequirements = useAppStore((s) => s.selectAllRequirements);
   const clearRequirementSelection = useAppStore((s) => s.clearRequirementSelection);
-
-  const treeData = useMemo(() => {
-    const map = new Map<string, TreeDataNode>();
-    const roots: TreeDataNode[] = [];
-
-    requirements.forEach((req) => {
-      map.set(req.id, {
-        key: req.id,
-        title: (
-          <span>
-            <Text type="secondary">[{req.id}]</Text> {req.title}
-          </span>
-        ),
-        children: [],
-      });
-    });
-
-    requirements.forEach((req) => {
-      const node = map.get(req.id)!;
-      if (req.parentId && map.has(req.parentId)) {
-        map.get(req.parentId)!.children!.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-
-    return roots;
-  }, [requirements]);
 
   if (requirements.length === 0) {
     return null;
@@ -62,22 +33,34 @@ const RequirementTree: React.FC<RequirementTreeProps> = ({ onSelect }) => {
           </Checkbox>
         </Space>
       </div>
-      <Tree
-        defaultExpandAll
-        checkable
-        checkedKeys={selectedRequirementIds}
-        onCheck={(checked) => {
-          const keys = Array.isArray(checked) ? checked : checked.checked;
-          useAppStore.setState({ selectedRequirementIds: keys as string[] });
+      <List
+        size="small"
+        dataSource={requirements}
+        rowKey="id"
+        renderItem={(req) => {
+          const isSelected = selectedRequirementIds.includes(req.id);
+          return (
+            <List.Item
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                background: isSelected ? '#e6f4ff' : 'transparent',
+                borderLeft: isSelected ? '3px solid #1677ff' : '3px solid transparent',
+              }}
+              onClick={() => {
+                useAppStore.setState({
+                  selectedRequirementIds: isSelected
+                    ? selectedRequirementIds.filter((id) => id !== req.id)
+                    : [...selectedRequirementIds, req.id],
+                });
+                if (onSelect) onSelect(req.id);
+              }}
+            >
+              <Text type="secondary" style={{ marginRight: 8 }}>[{req.id}]</Text>
+              <Text>{req.title}</Text>
+            </List.Item>
+          );
         }}
-        onSelect={(selectedKeys) => {
-          if (onSelect) {
-            const key = selectedKeys.length > 0 ? (selectedKeys[0] as string) : null;
-            onSelect(key);
-          }
-        }}
-        treeData={treeData}
-        style={{ marginTop: 8 }}
       />
     </div>
   );

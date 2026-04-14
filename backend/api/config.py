@@ -117,7 +117,12 @@ async def test_llm_connection(data: dict, db: AsyncSession = Depends(get_db)):
         return {'success': True, 'data': {'success': False, 'message': 'API Key 未配置'}}
 
     try:
-        url = f"{base_url.rstrip('/')}/chat/completions"
+        # MiniMax M2 系列使用不同的端点
+        if 'minimax' in base_url.lower() and model and 'MiniMax-M2' in model:
+            url = f"{base_url.rstrip('/')}/text/chatcompletion_v2"
+        else:
+            url = f"{base_url.rstrip('/')}/chat/completions"
+
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 url,

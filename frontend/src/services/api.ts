@@ -19,6 +19,17 @@ export const requirementApi = {
     api.get<ApiResponse<Requirement[]>>('/requirements'),
   updateRequirement: (id: string, data: Partial<Requirement>) =>
     api.put<ApiResponse<Requirement>>(`/requirements/${id}`, data),
+  deleteRequirement: (id: string) =>
+    api.delete<ApiResponse<void>>(`/requirements/${id}`),
+  uploadInterfaces: (reqId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<ApiResponse<{ added: number; total: number; signals: string[] }>>(
+      `/requirements/${reqId}/interfaces`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+  },
 };
 
 // 信号相关 API
@@ -73,4 +84,28 @@ export const linkApi = {
     api.get<ApiResponse<{ requirementId: string; signalId: string }[]>>(`/links/${requirementId}`),
   deleteLink: (requirementId: string, signalId: string) =>
     api.delete<ApiResponse<void>>(`/links/${requirementId}/${signalId}`),
+};
+
+// 信号库 API
+export const signalLibraryApi = {
+  upload: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<ApiResponse<{ added: number; updated: number; total: number }>>('/signals/library/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  uploadBatch: (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    return api.post<ApiResponse<{ added: number; updated: number; total: number }>>('/signals/library/upload-batch', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  getList: (params?: { search?: string; page?: number; pageSize?: number }) =>
+    api.get<ApiResponse<{ items: any[]; total: number; page: number; pageSize: number }>>('/signals/library', { params }),
+  getByName: (name: string) =>
+    api.get<ApiResponse<any>>(`/signals/library/${encodeURIComponent(name)}`),
+  getNames: (search?: string) =>
+    api.get<ApiResponse<string[]>>('/signals/library/names', { params: { search } }),
 };

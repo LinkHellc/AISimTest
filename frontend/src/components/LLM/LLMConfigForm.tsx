@@ -17,19 +17,52 @@ const providerUrls: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
   deepseek: 'https://api.deepseek.com/v1',
   glm: 'https://open.bigmodel.cn/api/paas/v4',
-  minimax: 'https://api.minimax.chat/v1',
+  minimax: 'https://api.minimax.io/v1',
   qianwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   wenxin: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop',
   azure: '',
 };
 
-const providerModelHints: Record<string, string> = {
-  openai: 'gpt-4o',
-  deepseek: 'deepseek-chat',
-  glm: 'glm-4-flash',
-  minimax: 'MiniMax-Text-01',
-  qianwen: 'qwen-plus',
-  wenxin: 'ernie-4.0-8k',
+// 每个 provider 可选的模型列表
+const providerModels: Record<string, { value: string; label: string }[]> = {
+  openai: [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'gpt-4.1', label: 'GPT-4.1' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+  ],
+  deepseek: [
+    { value: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
+    { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
+  ],
+  glm: [
+    { value: 'glm-4-flash', label: 'GLM-4-Flash (免费)' },
+    { value: 'glm-4-flash-250414', label: 'GLM-4-Flash-250414 (免费)' },
+    { value: 'glm-4.5-flash', label: 'GLM-4.5-Flash (免费)' },
+    { value: 'glm-4.7-flash', label: 'GLM-4.7-Flash (免费, 200K)' },
+    { value: 'glm-4-plus', label: 'GLM-4-Plus (付费旗舰)' },
+    { value: 'glm-4', label: 'GLM-4' },
+  ],
+  minimax: [
+    { value: 'MiniMax-Text-01', label: 'MiniMax-Text-01' },
+    { value: 'MiniMax-M2', label: 'MiniMax-M2' },
+    { value: 'MiniMax-M2.5', label: 'MiniMax-M2.5' },
+    { value: 'MiniMax-M2.7', label: 'MiniMax-M2.7 (最新)' },
+  ],
+  qianwen: [
+    { value: 'qwen-plus', label: 'Qwen-Plus' },
+    { value: 'qwen-turbo', label: 'Qwen-Turbo' },
+    { value: 'qwen-max', label: 'Qwen-Max' },
+    { value: 'qwen-long', label: 'Qwen-Long' },
+  ],
+  wenxin: [
+    { value: 'ernie-4.0-8k', label: 'ERNIE 4.0 8K' },
+    { value: 'ernie-3.5-8k', label: 'ERNIE 3.5 8K' },
+    { value: 'ernie-speed-128k', label: 'ERNIE Speed 128K' },
+  ],
+  azure: [],
+  custom: [],
 };
 
 const LLMConfigForm: React.FC = () => {
@@ -37,6 +70,9 @@ const LLMConfigForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [currentProvider, setCurrentProvider] = useState('openai');
+
+  const modelOptions = providerModels[currentProvider] || [];
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -44,11 +80,24 @@ const LLMConfigForm: React.FC = () => {
         const res = await configApi.getLLMConfig();
         if (res.data.success && res.data.data) {
           form.setFieldsValue(res.data.data);
+          if (res.data.data.provider) {
+            setCurrentProvider(res.data.data.provider);
+          }
         }
       } catch { /* ignore */ }
     };
     loadConfig();
   }, [form]);
+
+  const handleProviderChange = (val: string) => {
+    setCurrentProvider(val);
+    const updates: Record<string, string> = {};
+    if (providerUrls[val]) updates.baseUrl = providerUrls[val];
+    // 自动选择第一个模型
+    const models = providerModels[val];
+    if (models && models.length > 0) updates.model = models[0].value;
+    if (Object.keys(updates).length > 0) form.setFieldsValue(updates);
+  };
 
   const handleSave = async () => {
     try {
@@ -83,12 +132,7 @@ const LLMConfigForm: React.FC = () => {
   return (
     <Form form={form} layout="vertical" initialValues={{ provider: 'openai', temperature: 0.7, maxTokens: 2000 }}>
       <Form.Item name="provider" label="模型提供商" rules={[{ required: true }]}>
-        <Select options={providerOptions} onChange={(val) => {
-          const updates: Record<string, string> = {};
-          if (providerUrls[val]) updates.baseUrl = providerUrls[val];
-          if (providerModelHints[val]) updates.model = providerModelHints[val];
-          if (Object.keys(updates).length > 0) form.setFieldsValue(updates);
-        }} />
+        <Select options={providerOptions} onChange={handleProviderChange} />
       </Form.Item>
       <Form.Item name="apiKey" label="API Key" rules={[{ required: true, message: '请输入 API Key' }]}>
         <Input.Password placeholder="sk-..." />
@@ -97,7 +141,16 @@ const LLMConfigForm: React.FC = () => {
         <Input placeholder="https://api.openai.com/v1" />
       </Form.Item>
       <Form.Item name="model" label="模型名称" rules={[{ required: true }]}>
-        <Input placeholder="gpt-4" />
+        {modelOptions.length > 0 ? (
+          <Select
+            options={modelOptions}
+            placeholder="选择模型"
+            showSearch
+            allowClear={false}
+          />
+        ) : (
+          <Input placeholder="输入模型名称" />
+        )}
       </Form.Item>
       <Form.Item name="temperature" label="Temperature">
         <Slider min={0} max={2} step={0.1} />

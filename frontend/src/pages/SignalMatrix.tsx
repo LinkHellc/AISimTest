@@ -1,33 +1,25 @@
-import React from 'react';
-import { Typography, Card, Divider } from 'antd';
-import SignalImporter from '../components/Signal/SignalImporter';
-import SignalTable from '../components/Signal/SignalTable';
-import { useAppStore } from '../stores/appStore';
+import React, { useState } from 'react';
+import { Typography, Card } from 'antd';
+import SignalLibraryImporter from '../components/Signal/SignalLibraryImporter';
+import SignalLibraryTable from '../components/Signal/SignalLibraryTable';
 
 const { Title, Paragraph } = Typography;
 
 const SignalMatrix: React.FC = () => {
-  const signals = useAppStore((s) => s.signals);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <div>
       <Title level={4}>信号管理</Title>
       <Paragraph type="secondary">
-        导入 Excel 格式的 CAN/LIN 信号矩阵，关联信号与需求。
+        从接口表 Excel（Input/Mea/Output sheets）导入信号详细定义，智能合并更新。
       </Paragraph>
-
-      <Card title="上传信号矩阵" size="small">
-        <SignalImporter />
+      <Card title="导入信号库" size="small" style={{ marginBottom: 16 }}>
+        <SignalLibraryImporter onSuccess={() => setRefreshKey(k => k + 1)} />
       </Card>
-
-      {signals.length > 0 && (
-        <>
-          <Divider />
-          <Card title={`信号列表 (${signals.length} 个)`} size="small">
-            <SignalTable />
-          </Card>
-        </>
-      )}
+      <Card title="信号库列表" size="small">
+        <SignalLibraryTable key={refreshKey} />
+      </Card>
     </div>
   );
 };
