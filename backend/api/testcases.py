@@ -52,7 +52,12 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f'生成失败 (需求 {req.id}): {str(e)}')
 
+    # 替换模式：删除选中需求的旧测试用例，再插入新用例
+    await db.execute(
+        delete(TestCaseModel).where(TestCaseModel.requirement_id.in_(requirement_ids))
+    )
     for case in all_test_cases:
+        # 追加模式：同一需求的测试用例不删除，直接追加
         db_case = TestCaseModel(
             id=case['id'],
             name=case['name'],
@@ -134,9 +139,7 @@ async def export_test_cases_excel(data: dict, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=404, detail='没有可导出的测试用例')
 
     # 查询需求标题（用于 sheet 名称）
-    req_result = await db.execute(
-        select(RequirementModel.id, RequirementModel.title)
-    )
+    req_result = await db.execute(select(RequirementModel))
     req_titles = {r.id: r.title for r in req_result.scalars().all()}
 
     cases_data = [
