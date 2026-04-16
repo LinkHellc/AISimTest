@@ -85,7 +85,22 @@ async def upload_requirements(file: UploadFile = File(...), db: AsyncSession = D
         db.add(db_req)
     await db.commit()
 
-    return {'success': True, 'data': [r.model_dump() for r in parsed]}
+    return {'success': True, 'data': [
+        {
+            'id': r.id,
+            'title': r.title,
+            'signalInterfaces': r.signal_interfaces or [],
+            'sceneDescription': r.scene_description or '',
+            'functionDescription': r.function_description or '',
+            'entryCondition': r.entry_condition or '',
+            'executionBody': r.execution_body or '',
+            'exitCondition': r.exit_condition or '',
+            'postExitBehavior': r.post_exit_behavior or '',
+            'testModel': getattr(r, 'test_model', '') or '',
+            'testUnitModel': getattr(r, 'test_unit_model', '') or '',
+        }
+        for r in parsed
+    ]}
 
 
 @router.get('')

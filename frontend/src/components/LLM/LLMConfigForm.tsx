@@ -7,6 +7,8 @@ const providerOptions = [
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'glm', label: '智谱 GLM' },
   { value: 'minimax', label: 'MiniMax' },
+  { value: 'kimi', label: 'Kimi (Moonshot)' },
+  { value: 'gemini', label: 'Google Gemini' },
   { value: 'qianwen', label: '通义千问' },
   { value: 'wenxin', label: '文心一言' },
   { value: 'azure', label: 'Azure OpenAI' },
@@ -17,7 +19,9 @@ const providerUrls: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
   deepseek: 'https://api.deepseek.com/v1',
   glm: 'https://open.bigmodel.cn/api/paas/v4',
-  minimax: 'https://api.minimax.io/v1',
+  minimax: 'https://api.minimaxi.com',
+  kimi: 'https://api.moonshot.cn/v1',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta/openai/',
   qianwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   wenxin: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop',
   azure: '',
@@ -49,6 +53,17 @@ const providerModels: Record<string, { value: string; label: string }[]> = {
     { value: 'MiniMax-M2', label: 'MiniMax-M2' },
     { value: 'MiniMax-M2.5', label: 'MiniMax-M2.5' },
     { value: 'MiniMax-M2.7', label: 'MiniMax-M2.7 (最新)' },
+  ],
+  kimi: [
+    { value: 'moonshot-v1-8k', label: 'Moonshot V1 8K' },
+    { value: 'moonshot-v1-32k', label: 'Moonshot V1 32K' },
+    { value: 'moonshot-v1-128k', label: 'Moonshot V1 128K' },
+  ],
+  gemini: [
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
   ],
   qianwen: [
     { value: 'qwen-plus', label: 'Qwen-Plus' },
@@ -137,6 +152,11 @@ const LLMConfigForm: React.FC = () => {
       <Form.Item name="apiKey" label="API Key" rules={[{ required: true, message: '请输入 API Key' }]}>
         <Input.Password placeholder="sk-..." />
       </Form.Item>
+      {currentProvider === 'minimax' && (
+        <Form.Item name="groupId" label="Group ID (MiniMax)">
+          <Input.Password placeholder="请输入 MiniMax Group ID" />
+        </Form.Item>
+      )}
       <Form.Item name="baseUrl" label="Base URL">
         <Input placeholder="https://api.openai.com/v1" />
       </Form.Item>

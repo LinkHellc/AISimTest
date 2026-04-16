@@ -58,6 +58,14 @@ async def get_llm_config(db: AsyncSession = Depends(get_db)):
         except Exception:
             masked_key = '***'
 
+    masked_group_id = ''
+    if config.group_id:
+        try:
+            real_gid = decrypt_value(config.group_id)
+            masked_group_id = real_gid[:6] + '***' if len(real_gid) > 8 else '***'
+        except Exception:
+            masked_group_id = '***'
+
     return {
         'success': True,
         'data': {
@@ -67,6 +75,7 @@ async def get_llm_config(db: AsyncSession = Depends(get_db)):
             'model': config.model,
             'temperature': config.temperature,
             'maxTokens': config.max_tokens,
+            'groupId': masked_group_id,
         },
     }
 
@@ -92,6 +101,8 @@ async def update_llm_config(data: dict, db: AsyncSession = Depends(get_db)):
         config.max_tokens = int(data['maxTokens'])
     if 'apiKey' in data and data['apiKey'] and '***' not in data['apiKey']:
         config.api_key = encrypt_value(data['apiKey'])
+    if 'groupId' in data and data['groupId'] and '***' not in data['groupId']:
+        config.group_id = encrypt_value(data['groupId'])
 
     await db.commit()
     return {'success': True}
@@ -104,6 +115,7 @@ async def test_llm_connection(data: dict, db: AsyncSession = Depends(get_db)):
     api_key = data.get('apiKey', '')
     base_url = data.get('baseUrl', 'https://api.openai.com/v1')
     model = data.get('model', 'gpt-4')
+    group_id = data.get('groupId', '')
 
     if not api_key or '***' in api_key:
         result = await db.execute(select(LLMConfigModel).where(LLMConfigModel.id == 'default'))
@@ -113,21 +125,29 @@ async def test_llm_connection(data: dict, db: AsyncSession = Depends(get_db)):
                 api_key = decrypt_value(config.api_key)
             except Exception:
                 pass
+        if config and getattr(config, 'group_id', None):
+            group_id = decrypt_value(config.group_id) if config.group_id else group_id
 
     if not api_key:
         return {'success': True, 'data': {'success': False, 'message': 'API Key 未配置'}}
 
     try:
         # MiniMax M2 系列使用不同的端点
-        if 'minimax' in base_url.lower() and model and 'MiniMax-M2' in model:
-            url = f"{base_url.rstrip('/')}/text/chatcompletion_v2"
+        is_minimax = 'minimax' in base_url.lower() and model and 'MiniMax-M2' in model
+        if is_minimax:
+            # MiniMax API 需要 /v1 前缀
+            url = f"{base_url.rstrip('/')}/v1/text/chatcompletion_v2"
         else:
             url = f"{base_url.rstrip('/')}/chat/completions"
+
+        headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
+        if group_id:
+            headers['GroupId'] = group_id
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 url,
-                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                headers=headers,
                 json={
                     'model': model,
                     'messages': [{'role': 'user', 'content': 'Hi, reply with "OK".'}],

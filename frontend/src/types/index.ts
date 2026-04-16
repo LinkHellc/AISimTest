@@ -68,6 +68,7 @@ export interface LLMConfig {
   model: string;
   temperature: number;
   maxTokens: number;
+  groupId?: string;
 }
 
 // 生成参数

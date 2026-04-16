@@ -65,6 +65,7 @@ class LLMConfig(Base):
     model = Column(String, default='gpt-4')
     temperature = Column(Float, default=0.7)
     max_tokens = Column(Integer, default=2000)
+    group_id = Column(String, default='')  # MiniMax group ID
 
 
 class RequirementSignalLink(Base):

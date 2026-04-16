@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Typography, Table, Button, Space, Modal, Form, Input, message, Popconfirm, Select, Tag, Card, Alert, Upload, Progress } from 'antd';
+import type { Key } from 'react';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons';
 import { requirementApi } from '../services/api';
 import { useAppStore } from '../stores/appStore';
@@ -15,6 +16,7 @@ const Requirements: React.FC = () => {
   const [modal, setModal] = useState<{ open: boolean; editing?: Requirement }>({ open: false });
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   // 接口导入状态
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
@@ -86,6 +88,21 @@ const Requirements: React.FC = () => {
       await loadRequirements();
     } catch (err: any) {
       message.error(err.response?.data?.detail || '删除失败');
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的需求');
+      return;
+    }
+    try {
+      await Promise.all(selectedRowKeys.map(id => requirementApi.deleteRequirement(id as string)));
+      message.success(`成功删除 ${selectedRowKeys.length} 条需求`);
+      setSelectedRowKeys([]);
+      await loadRequirements();
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || '批量删除失败');
     }
   };
 
@@ -234,11 +251,16 @@ const Requirements: React.FC = () => {
         </Space>
       </Card>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <Space>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增需求</Button>
           <Button icon={<UploadOutlined />} onClick={loadRequirements}>刷新</Button>
         </Space>
+        {selectedRowKeys.length > 0 && (
+          <Button danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
+            批量删除 ({selectedRowKeys.length})
+          </Button>
+        )}
       </div>
 
       <Table
@@ -246,8 +268,13 @@ const Requirements: React.FC = () => {
         columns={columns}
         dataSource={requirements}
         size="small"
-        pagination={{ pageSize: 10 }}
+        pagination={{ pageSize: 10, current: 1, showSizeChanger: false }}
         bordered
+        scroll={{ x: 'max-content' }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys),
+        }}
       />
 
       <Modal

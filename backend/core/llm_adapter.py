@@ -28,6 +28,13 @@ async def _get_llm_config() -> dict:
             except Exception:
                 raise ValueError('API Key 解密失败，请重新配置')
 
+        group_id = ''
+        if config.group_id:
+            try:
+                group_id = decrypt_value(config.group_id)
+            except Exception:
+                pass
+
         return {
             'provider': config.provider,
             'api_key': api_key,
@@ -35,6 +42,7 @@ async def _get_llm_config() -> dict:
             'model': config.model,
             'temperature': config.temperature,
             'max_tokens': config.max_tokens,
+            'group_id': group_id,
         }
 
 
@@ -246,20 +254,50 @@ async def generate_test_cases_for_requirement(
 
     # Use synchronous OpenAI client in thread pool to avoid blocking
     def _call_llm():
-        client = OpenAI(
-            api_key=config['api_key'],
-            base_url=config['base_url'],
-        )
-        response = client.chat.completions.create(
-            model=config['model'],
-            messages=[
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': user_prompt},
-            ],
-            temperature=config['temperature'],
-            max_tokens=max(16000, config['max_tokens']),
-        )
-        return response.choices[0].message.content or ''
+        # MiniMax M2 系列需要特殊处理
+        is_minimax = 'minimax' in config['base_url'].lower() and 'MiniMax-M2' in config['model']
+        if is_minimax:
+            import httpx
+            url = f"{config['base_url'].rstrip('/')}/v1/text/chatcompletion_v2"
+            headers = {
+                'Authorization': f'Bearer {config["api_key"]}',
+                'Content-Type': 'application/json',
+            }
+            if config.get('group_id'):
+                headers['GroupId'] = config['group_id']
+            with httpx.Client(timeout=120.0) as client:
+                response = client.post(
+                    url,
+                    headers=headers,
+                    json={
+                        'model': config['model'],
+                        'messages': [
+                            {'role': 'system', 'content': system_prompt},
+                            {'role': 'user', 'content': user_prompt},
+                        ],
+                        'temperature': config['temperature'],
+                        'max_tokens': max(16000, config['max_tokens']),
+                    },
+                )
+            if response.status_code != 200:
+                raise RuntimeError(f'MiniMax API error: {response.status_code} - {response.text}')
+            resp_data = response.json()
+            return resp_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        else:
+            client = OpenAI(
+                api_key=config['api_key'],
+                base_url=config['base_url'],
+            )
+            response = client.chat.completions.create(
+                model=config['model'],
+                messages=[
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': user_prompt},
+                ],
+                temperature=config['temperature'],
+                max_tokens=max(16000, config['max_tokens']),
+            )
+            return response.choices[0].message.content or ''
 
     # 重试机制：失败后等待1秒，最多重试3次
     content = None
