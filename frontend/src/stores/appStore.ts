@@ -59,6 +59,15 @@ interface AppState {
   // 生成进度
   generationProgress: GenerationProgress;
   setGenerationProgress: (progress: Partial<GenerationProgress>) => void;
+
+  // 上传进度
+  uploadProgress: {
+    uploading: boolean;
+    progress: number;
+    statusText: string;
+    logs: { time: string; text: string }[];
+  };
+  setUploadProgress: (progress: Partial<{ uploading?: boolean; progress?: number; statusText?: string; log?: string; clearLogs?: boolean }>) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -117,4 +126,38 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       generationProgress: { ...state.generationProgress, ...progress },
     })),
+
+  // 上传进度
+  uploadProgress: {
+    uploading: false,
+    progress: 0,
+    statusText: '',
+    logs: [],
+  },
+  setUploadProgress: (progress) =>
+    set((state) => {
+      if ('clearLogs' in progress && progress.clearLogs) {
+        return {
+          uploadProgress: {
+            ...state.uploadProgress,
+            logs: [],
+          },
+        };
+      }
+      if ('log' in progress && progress.log) {
+        return {
+          uploadProgress: {
+            ...state.uploadProgress,
+            ...progress,
+            logs: [
+              ...state.uploadProgress.logs,
+              { time: new Date().toLocaleTimeString(), text: progress.log as string },
+            ],
+          },
+        };
+      }
+      return {
+        uploadProgress: { ...state.uploadProgress, ...progress },
+      };
+    }),
 }));

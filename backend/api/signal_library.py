@@ -296,3 +296,136 @@ def _signal_to_dict(signal: SignalLibrary) -> dict:
         'maxValue': signal.max_value,
         'sourceFile': signal.source_file,
     }
+
+
+# ---------- 更新信号 ----------
+
+@router.put('/{signal_id}')
+async def update_signal(
+    signal_id: str,
+    data: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """更新信号信息"""
+    result = await db.execute(select(SignalLibrary).where(SignalLibrary.id == signal_id))
+    signal = result.scalar_one_or_none()
+
+    if not signal:
+        raise HTTPException(status_code=404, detail='信号不存在')
+
+    # 可更新的字段
+    updatable_fields = [
+        'description', 'data_type', 'unit', 'value_table', 'initial_value',
+        'bus', 'storage_class', 'dimension', 'factor', 'offset',
+        'min_value', 'max_value', 'source_file'
+    ]
+
+    for field in updatable_fields:
+        camel_field = field.replace('_', '')
+        # 处理特殊的下划线字段名
+        if field == 'data_type':
+            if 'dataType' in data:
+                signal.data_type = data['dataType']
+        elif field == 'value_table':
+            if 'valueTable' in data:
+                signal.value_table = data['valueTable']
+        elif field == 'initial_value':
+            if 'initialValue' in data:
+                signal.initial_value = data['initialValue']
+        elif field == 'storage_class':
+            if 'storageClass' in data:
+                signal.storage_class = data['storageClass']
+        elif field == 'min_value':
+            if 'minValue' in data:
+                signal.min_value = data['minValue']
+        elif field == 'max_value':
+            if 'maxValue' in data:
+                signal.max_value = data['maxValue']
+        elif field == 'source_file':
+            if 'sourceFile' in data:
+                signal.source_file = data['sourceFile']
+        elif field in data:
+            setattr(signal, field, data[field])
+
+    await db.commit()
+    return {'success': True, 'data': _signal_to_dict(signal)}
+
+
+# ---------- 删除信号 ----------
+
+@router.delete('/{signal_id}')
+async def delete_signal(
+    signal_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """删除单个信号"""
+    result = await db.execute(select(SignalLibrary).where(SignalLibrary.id == signal_id))
+    signal = result.scalar_one_or_none()
+
+    if not signal:
+        raise HTTPException(status_code=404, detail='信号不存在')
+
+    await db.delete(signal)
+    await db.commit()
+    return {'success': True}
+
+
+@router.delete('')
+async def delete_signals_batch(
+    ids: list[str],
+    db: AsyncSession = Depends(get_db)
+):
+    """批量删除信号"""
+    if not ids:
+        raise HTTPException(status_code=400, detail='未提供要删除的信号ID')
+
+    result = await db.execute(select(SignalLibrary).where(SignalLibrary.id.in_(ids)))
+    signals = result.scalars().all()
+
+    if not signals:
+        raise HTTPException(status_code=404, detail='未找到要删除的信号')
+
+    for signal in signals:
+        await db.delete(signal)
+
+    await db.commit()
+    return {'success': True, 'data': {'deleted': len(signals)}}
+
+
+@router.post('/delete-all')
+async def delete_all_signals(
+    db: AsyncSession = Depends(get_db)
+):
+    """清空信号库所有信号"""
+    result = await db.execute(select(SignalLibrary))
+    signals = result.scalars().all()
+
+    if not signals:
+        return {'success': True, 'data': {'deleted': 0}}
+
+    for signal in signals:
+        await db.delete(signal)
+
+    await db.commit()
+    return {'success': True, 'data': {'deleted': len(signals)}}
+
+
+@router.post('/select-all')
+async def select_all_signals(
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取所有信号ID（用于全选）"""
+    query = select(SignalLibrary.id)
+
+    if search:
+        query = query.where(
+            or_(
+                SignalLibrary.name.ilike(f'%{search}%'),
+                SignalLibrary.description.ilike(f'%{search}%')
+            )
+        )
+
+    result = await db.execute(query)
+    ids = result.scalars().all()
+    return {'success': True, 'data': {'ids': list(ids), 'total': len(ids)}}

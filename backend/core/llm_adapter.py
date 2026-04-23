@@ -176,7 +176,7 @@ import re
 def validate_test_cases(test_cases: list[dict], signals: list[dict] | None) -> list[dict]:
     """
     验证测试用例是否使用了有效的信号
-    返回验证警告列表，每个警告包含 case_id, step_name, invalid_signals
+    返回验证警告列表，每个警告包含 case_id, step_name, invalid_signals, invalid_verify_signals
     """
     # 收集所有有效的信号名（支持带前缀和不带前缀）
     valid_signals = set()
@@ -185,11 +185,14 @@ def validate_test_cases(test_cases: list[dict], signals: list[dict] | None) -> l
             valid_signals.add(s['name'])
             # 如果信号名以 gCbnSys_ 或 gCAN_ 开头，也注册不带前缀的简称
             name = s['name']
-            for prefix in ['gCbnSys_', 'gCAN_', 'gCbnHMI_', 'gCbnSpc_']:
+            for prefix in ['gCbnSys_', 'gCAN_', 'gCbnHMI_', 'gCbnSpc_', 'gCbnBAT_', 'gCbnAC_', 'lCCU_', 'lVCCU_']:
                 if name.startswith(prefix):
                     short_name = name[len(prefix):]
                     valid_signals.add(short_name)
                     break
+
+    # 常见的中间变量名（不视为信号）
+    common_vars = {'Cnt', 'i', 'j', 'k', 'temp', 'tmp', 'flag', 't', 'et', 'msec', 'sec'}
 
     warnings = []
     for case in test_cases:
@@ -198,24 +201,45 @@ def validate_test_cases(test_cases: list[dict], signals: list[dict] | None) -> l
         for step in steps:
             step_name = step.get('TestStepName', '未知步骤')
             action = step.get('TestStepAction', '') or step.get('TestAction', '') or ''
-            # 提取所有赋值语句左侧的信号名
+            verify = step.get('TestVerify', '') or ''
+
+            # 检查 TestStepAction 中的信号
             assigned_signals = re.findall(r'\b([\w.]+)\s*=', action)
-            invalid = []
+            invalid_action_signals = []
             for sig in assigned_signals:
                 # 检查是否是有效信号（完整匹配或简称匹配）
                 is_valid = False
-                for valid in valid_signals:
-                    if sig == valid or sig.endswith('.' + valid) or sig.endswith('_' + valid):
-                        is_valid = True
-                        break
-                if not is_valid and sig not in ('Cnt', 'i', 'j', 'k', 'temp', 'tmp', 'flag'):
-                    # 排除常见的中间变量名
-                    invalid.append(sig)
-            if invalid:
+                if sig in common_vars:
+                    is_valid = True
+                else:
+                    for valid in valid_signals:
+                        if sig == valid or sig.endswith('.' + valid) or sig.endswith('_' + valid):
+                            is_valid = True
+                            break
+                if not is_valid:
+                    invalid_action_signals.append(sig)
+
+            # 检查 TestVerify 中的信号（verify(...) 括号内的内容）
+            verify_signals = re.findall(r'verify\s*\(\s*([\w.]+)', verify)
+            invalid_verify_signals = []
+            for sig in verify_signals:
+                is_valid = False
+                if sig in common_vars:
+                    is_valid = True
+                else:
+                    for valid in valid_signals:
+                        if sig == valid or sig.endswith('.' + valid) or sig.endswith('_' + valid):
+                            is_valid = True
+                            break
+                if not is_valid:
+                    invalid_verify_signals.append(sig)
+
+            if invalid_action_signals or invalid_verify_signals:
                 warnings.append({
                     'case_name': case_name,
                     'step_name': step_name,
-                    'invalid_signals': list(set(invalid)),
+                    'invalid_signals': list(set(invalid_action_signals)),
+                    'invalid_verify_signals': list(set(invalid_verify_signals)),
                 })
     return warnings
 

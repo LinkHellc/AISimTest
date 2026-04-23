@@ -1,4 +1,5 @@
 import uuid
+import re
 import tempfile
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -11,6 +12,71 @@ from core.llm_adapter import generate_test_cases_for_requirement, generation_log
 from core.exporter import export_to_excel, export_to_word
 
 router = APIRouter(prefix='/api/testcases', tags=['testcases'])
+
+
+def validate_test_cases_against_interface(test_cases: list[dict], signal_interfaces: list[dict]) -> list[dict]:
+    """
+    用需求的接口信号定义验证测试用例中的信号是否有效
+    这是场景测试前的最终检查，确保测试用例只使用接口定义的信号
+
+    返回警告列表，每个警告包含:
+    - case_name: 测试用例名称
+    - step_name: 步骤名称
+    - invalid_signals: TestStepAction中使用的无效信号
+    - invalid_verify_signals: TestVerify中使用的无效信号
+    """
+    # 收集接口定义中的所有有效信号名
+    valid_signals = set()
+    for si in signal_interfaces:
+        name = si.get('name')
+        if name:
+            valid_signals.add(name)
+            # 也注册不带前缀的简称
+            for prefix in ['gCbnSys_', 'gCAN_', 'gCbnHMI_', 'gCbnSpc_', 'gCbnBAT_', 'gCbnAC_', 'lCCU_', 'lVCCU_']:
+                if name.startswith(prefix):
+                    valid_signals.add(name[len(prefix):])
+                    break
+
+    # 常见的中间变量名（不视为信号）
+    common_vars = {'Cnt', 'i', 'j', 'k', 'temp', 'tmp', 'flag', 't', 'et', 'msec', 'sec'}
+
+    warnings = []
+    for case in test_cases:
+        case_name = case.get('name', '未命名')
+        steps = case.get('steps', [])
+        for step in steps:
+            step_name = step.get('TestStepName', '未知步骤')
+            action = step.get('TestStepAction', '') or step.get('TestAction', '') or ''
+            verify = step.get('TestVerify', '') or ''
+
+            # 检查 TestStepAction 中的信号
+            assigned_signals = re.findall(r'\b([\w.]+)\s*=', action)
+            invalid_action = []
+            for sig in assigned_signals:
+                if sig in common_vars:
+                    continue
+                is_valid = any(sig == v or sig.endswith('.' + v) or sig.endswith('_' + v) for v in valid_signals)
+                if not is_valid:
+                    invalid_action.append(sig)
+
+            # 检查 TestVerify 中的信号
+            verify_signals = re.findall(r'verify\s*\(\s*([\w.]+)', verify)
+            invalid_verify = []
+            for sig in verify_signals:
+                if sig in common_vars:
+                    continue
+                is_valid = any(sig == v or sig.endswith('.' + v) or sig.endswith('_' + v) for v in valid_signals)
+                if not is_valid:
+                    invalid_verify.append(sig)
+
+            if invalid_action or invalid_verify:
+                warnings.append({
+                    'case_name': case_name,
+                    'step_name': step_name,
+                    'invalid_signals': list(set(invalid_action)),
+                    'invalid_verify_signals': list(set(invalid_verify)),
+                })
+    return warnings
 
 
 @router.post('/generate')
@@ -79,6 +145,17 @@ async def generate_test_cases(data: dict, db: AsyncSession = Depends(get_db)):
                 })
         try:
             cases, _log_id, warnings = await generate_test_cases_for_requirement(req_dict, signals_dict or None)
+
+            # 【关键检查】用需求的接口信号定义验证测试用例中的信号
+            interface_warnings = validate_test_cases_against_interface(cases, req.signal_interfaces or [])
+            if interface_warnings:
+                for w in interface_warnings:
+                    all_warnings.append({
+                        'requirement_id': req.id,
+                        'requirement_title': req.title,
+                        **w
+                    })
+
             all_test_cases.extend(cases)
             all_warnings.extend(warnings)
         except Exception as e:

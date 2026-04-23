@@ -120,4 +120,14 @@ export const signalLibraryApi = {
     api.get<ApiResponse<any>>(`/signals/library/${encodeURIComponent(name)}`),
   getNames: (search?: string) =>
     api.get<ApiResponse<string[]>>('/signals/library/names', { params: { search } }),
+  update: (id: string, data: any) =>
+    api.put<ApiResponse<any>>(`/signals/library/${id}`, data),
+  delete: (id: string) =>
+    api.delete<ApiResponse<void>>(`/signals/library/${id}`),
+  deleteBatch: (ids: string[]) =>
+    api.delete<ApiResponse<{ deleted: number }>>('/signals/library', { data: ids }),
+  deleteAll: () =>
+    api.post<ApiResponse<{ deleted: number }>>('/signals/library/delete-all'),
+  selectAll: (search?: string) =>
+    api.post<ApiResponse<{ ids: string[]; total: number }>>('/signals/library/select-all', { search }),
 };

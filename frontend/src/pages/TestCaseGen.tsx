@@ -88,6 +88,13 @@ const TestCaseGen: React.FC = () => {
       if (res.data.success && res.data.data) {
         setTestCases(res.data.data);
         message.success(`成功生成 ${res.data.data.length} 条测试用例`);
+        // 检查是否有信号验证警告
+        if (res.data.warnings && res.data.warnings.length > 0) {
+          const warnList = res.data.warnings.map((w: any) =>
+            `[${w.requirement_title || '未知需求'}] 用例"${w.case_name}"步骤"${w.step_name}": 无效信号 ${w.invalid_signals?.join(', ')}${w.invalid_verify_signals?.length > 0 ? `, 验证中无效信号 ${w.invalid_verify_signals.join(', ')}` : ''}`
+          ).join('\n');
+          message.warning(`检测到 ${res.data.warnings.length} 条信号问题:\n${warnList}`);
+        }
         setSelectedRowKeys([]);
         await loadLogs();
         setLogPanelExpanded(true);
