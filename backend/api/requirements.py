@@ -32,10 +32,18 @@ async def _get_llm_config() -> dict:
         except Exception:
             raise ValueError('API Key 解密失败，请重新配置')
 
+        group_id = ''
+        if config.group_id:
+            try:
+                group_id = decrypt_value(config.group_id)
+            except Exception:
+                pass
+
         return {
             'api_key': api_key,
             'base_url': config.base_url or 'https://api.openai.com/v1',
             'model': config.model,
+            'group_id': group_id,
         }
 
 
