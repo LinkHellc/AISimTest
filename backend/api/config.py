@@ -117,7 +117,7 @@ async def test_llm_connection(data: dict, db: AsyncSession = Depends(get_db)):
     model = data.get('model', 'gpt-4')
     group_id = data.get('groupId', '')
 
-    if not api_key or '***' in api_key:
+    if not api_key or '***' in api_key or '***' in str(group_id):
         result = await db.execute(select(LLMConfigModel).where(LLMConfigModel.id == 'default'))
         config = result.scalar_one_or_none()
         if config and config.api_key:
