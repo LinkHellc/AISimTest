@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Typography, Table, Button, Space, Modal, Form, Input, message, Popconfirm, Select, Tag, Card, Alert, Upload, Progress } from 'antd';
+import { Typography, Table, Button, Space, Modal, Form, Input, message, Popconfirm, Select, Card, Alert, Upload, Progress } from 'antd';
 import type { Key } from 'react';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, InboxOutlined } from '@ant-design/icons';
 import { requirementApi } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import type { Requirement } from '../types';
@@ -119,7 +119,7 @@ const Requirements: React.FC = () => {
       setImportProgress(100);
       if (res.data.success) {
         const d = res.data.data;
-        message.success(`成功导入 ${d.added} 个信号（已共存 ${d.total} 个）`);
+        message.success(`成功导入 ${d?.added} 个信号（已共存 ${d?.total} 个）`);
         await loadRequirements();
       } else {
         message.error(res.data.error || '导入失败');

@@ -128,7 +128,7 @@ const WordImporter: React.FC = () => {
                 {uploadProgress.statusText}
               </Text>
               <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                <Timeline size="small" style={{ margin: 0 }}>
+                <Timeline style={{ margin: 0 }}>
                   {uploadProgress.logs.map((log, idx) => (
                     <Timeline.Item
                       key={idx}

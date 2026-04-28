@@ -63,7 +63,7 @@ const RequirementDetail: React.FC<Props> = ({ requirementId }) => {
                 </Text>
                 <div style={{ marginTop: 8 }}>
                   {(req.signalInterfaces || []).map((sig, i) => (
-                    <Tag key={i} style={{ marginBottom: 4 }}>{sig}</Tag>
+                    <Tag key={i} style={{ marginBottom: 4 }}>{sig.name}</Tag>
                   ))}
                 </div>
               </div>

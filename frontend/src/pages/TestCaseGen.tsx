@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Typography, Table, Button, Space, Card, message, Tag, Popconfirm, Input, Collapse } from 'antd';
+import { Typography, Table, Button, Space, Card, message, Tag, Popconfirm, Input } from 'antd';
 import { ThunderboltOutlined, FileExcelOutlined, FileWordOutlined, EditOutlined, DeleteOutlined, ClearOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import TestCaseEditModal from '../components/TestCase/TestCaseEditModal';
 import { testCaseApi, requirementApi } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import type { Requirement, TestCase } from '../types';
 
-const { Title, Paragraph, Text, Pre } = Typography;
-const { Panel } = Collapse;
+const { Title, Paragraph, Text } = Typography;
 
 interface GenerationLog {
   id: string;
@@ -89,11 +88,12 @@ const TestCaseGen: React.FC = () => {
         setTestCases(res.data.data);
         message.success(`成功生成 ${res.data.data.length} 条测试用例`);
         // 检查是否有信号验证警告
-        if (res.data.warnings && res.data.warnings.length > 0) {
-          const warnList = res.data.warnings.map((w: any) =>
+        const warnings = (res.data as any).warnings as Array<any> | undefined;
+        if (warnings && warnings.length > 0) {
+          const warnList = warnings.map((w) =>
             `[${w.requirement_title || '未知需求'}] 用例"${w.case_name}"步骤"${w.step_name}": 无效信号 ${w.invalid_signals?.join(', ')}${w.invalid_verify_signals?.length > 0 ? `, 验证中无效信号 ${w.invalid_verify_signals.join(', ')}` : ''}`
           ).join('\n');
-          message.warning(`检测到 ${res.data.warnings.length} 条信号问题:\n${warnList}`);
+          message.warning(`检测到 ${warnings.length} 条信号问题:\n${warnList}`);
         }
         setSelectedRowKeys([]);
         await loadLogs();

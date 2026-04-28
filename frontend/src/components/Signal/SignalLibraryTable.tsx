@@ -19,7 +19,7 @@ const SignalLibraryTable: React.FC<SignalLibraryTableProps> = ({ onSignalSelect 
   const [pageSize, setPageSize] = useState(50);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [allSelectedKeys, setAllSelectedKeys] = useState<React.Key[]>([]);
   const [editingSignal, setEditingSignal] = useState<SignalLibraryItem | null>(null);
   const [editForm] = Form.useForm();
@@ -114,7 +114,7 @@ const SignalLibraryTable: React.FC<SignalLibraryTableProps> = ({ onSignalSelect 
     try {
       const response = await signalLibraryApi.deleteAll();
       if (response.data.success) {
-        message.success(`已清空 ${response.data.data.deleted} 个信号`);
+        message.success(`已清空 ${response.data.data?.deleted ?? 0} 个信号`);
         setAllSelectedKeys([]);
         setSelectedRowKeys([]);
         loadData();
@@ -283,7 +283,7 @@ const SignalLibraryTable: React.FC<SignalLibraryTableProps> = ({ onSignalSelect 
       const currentPageKeys = data.map((item) => item.id);
       const newKeys = keys as React.Key[];
       const toAdd = newKeys.filter((k) => !allSelectedKeys.includes(k));
-      const toRemove = allSelectedKeys.filter((k) => currentPageKeys.includes(k) && !newKeys.includes(k));
+      const toRemove = allSelectedKeys.filter((k) => currentPageKeys.includes(k as string) && !newKeys.includes(k));
       setAllSelectedKeys([...allSelectedKeys.filter((k) => !toRemove.includes(k)), ...toAdd]);
     },
     preserveSelectedRowKeys: true,

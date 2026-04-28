@@ -146,7 +146,7 @@ const Settings: React.FC = () => {
         <LLMConfigForm />
       </Card>
 
-      <Divider orientation="left">提示词模板</Divider>
+      <Divider>提示词模板</Divider>
       <Collapse defaultActiveKey={[]}>
         {templates.map((template) => (
           <Panel
